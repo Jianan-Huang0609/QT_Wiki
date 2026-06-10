@@ -5,11 +5,13 @@ from pathlib import Path
 from Tool.contracts.canonical import CanonicalDocument, DocumentMeta
 from Tool.normalizers import detect_doc_type
 from Tool.parsers.docx_parser import parse_docx
+from Tool.parsers.markdown_parser import parse_markdown
 from Tool.parsers.pdf_parser import parse_pdf
 from Tool.parsers.pptx_parser import parse_pptx
 from Tool.parsers.xlsx_parser import parse_xlsx
+from Tool.workflows.document_parse import apply_parse_workflow_contract
 
-SUPPORTED_SUFFIXES = {".docx", ".pdf", ".pptx", ".xlsx"}
+SUPPORTED_SUFFIXES = {".docx", ".pdf", ".pptx", ".xlsx", ".md"}
 
 
 def parse_document(file_path: str | Path, manifest: dict) -> CanonicalDocument:
@@ -17,18 +19,31 @@ def parse_document(file_path: str | Path, manifest: dict) -> CanonicalDocument:
     suffix = path.suffix.lower()
     parser_map = {
         ".docx": parse_docx,
+        ".md": parse_markdown,
         ".pdf": parse_pdf,
         ".pptx": parse_pptx,
         ".xlsx": parse_xlsx,
     }
+    parser_name_map = {
+        ".docx": "docx_parser",
+        ".md": "markdown_parser",
+        ".pdf": "pdf_parser",
+        ".pptx": "pptx_parser",
+        ".xlsx": "xlsx_parser",
+    }
     parser = parser_map.get(suffix)
     if parser is None:
-        return _failed_document(path, manifest, f"Unsupported file type: {suffix}")
+        return apply_parse_workflow_contract(
+            _failed_document(path, manifest, f"Unsupported file type: {suffix}"),
+            parser_name="unsupported_parser",
+            trace=["W0 context loaded", f"W1 unsupported suffix {suffix}", "E1 capture completeness eval"],
+        )
 
     try:
-        return parser(path, manifest)
+        canonical = parser(path, manifest)
     except Exception as exc:
-        return _failed_document(path, manifest, str(exc))
+        canonical = _failed_document(path, manifest, str(exc))
+    return apply_parse_workflow_contract(canonical, parser_name=parser_name_map.get(suffix, f"{suffix.lstrip('.')}_parser"))
 
 
 def _failed_document(path: Path, manifest: dict, error: str) -> CanonicalDocument:

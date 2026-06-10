@@ -130,6 +130,10 @@ def load_processed_document(document_id: str) -> ProcessedDocument:
             content_parts.append(f"\n[表格]\n{table_text}")
 
     full_content = "\n\n".join(content_parts)
+    parse_workflow = canonical.document.metadata.get("parse_workflow", {})
+    structure_quality = canonical.document.metadata.get("structure_quality", parse_workflow.get("structure_quality", {}))
+    eval_summary = canonical.document.metadata.get("eval_summary", parse_workflow.get("eval_summary", {}))
+    review_items = canonical.document.metadata.get("review_items", parse_workflow.get("review_items", []))
 
     return ProcessedDocument(
         document_id=canonical.document.document_id,
@@ -144,6 +148,10 @@ def load_processed_document(document_id: str) -> ProcessedDocument:
             "fragment_count": len(canonical.fragments),
             "table_count": len(canonical.tables),
             "section_count": len(canonical.sections),
+            "structure_quality": structure_quality,
+            "eval_summary": eval_summary,
+            "review_items": review_items,
+            "parse_workflow": parse_workflow,
         },
     )
 

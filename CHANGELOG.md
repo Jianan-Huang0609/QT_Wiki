@@ -1,5 +1,25 @@
 ﻿# Changelog
 
+## 2026-06-10
+
+- 基于用户反馈将 PRD 升级为 v0.3 NotebookLM 式产品：外部 Landing / Knowledge Base 负责知识库维护和入口，正式互动 Session 作为本次 MVP，右侧 Session Note / Workflow Studio 承接 HTML、飞书 Markdown、Reference、Mermaid、BU diff 和 publish note 入口。
+- 新增 `Design/MultiInput-Parser-RAG-Workflow-设计.md`，将底层能力收敛为多格式解析、章节化、Script/LLM/Evals 分工、Retrieval Strategy Matrix 与 Session RAG Workflow。
+- 新增 `Design/Parser-Workflow-Evals-实施计划.md`，将 BUs_CER / LEFA_v6 的 Evals 经验收敛为抓取完整性、真源返回、章节正确性三类质量门，并明确 parser、后端接口、前端 UI 的人工核查 Gate。
+- 实现 Gate 1 Parser Workflow Contract 与 Gate 2 Markdown parser MVP：新增 parse workflow/eval summary 生成、Markdown 解析、parse-summary/sections API，并扩展上传响应返回结构质量与 review items；最终验证 `89 passed`。
+- 实现 Parser Quality Eval MVP：新增 `Tool/evals/parser_quality.py`，动态检查抓取缺口、章节漂移、章节树错误、噪音标题、复杂表格/图片风险和 LLM 输出缺证据，并接入 workflow summary；最终验证 `89 passed`。
+
+## 2026-06-09
+
+- 新增 `Design/PRD-流程问答工作台.md`，将 vNext 产品方向收敛为“上传文档 -> AI 解析 -> 主 Chat 流程问答 -> Reference 映射 -> 导出/训练/差异”的工作台主线。
+- 新增 `Design/Todo+Spec-流程问答工作台.md`，按 Phase 0-5 拆解 Chat Answer Contract、Process Index、PEP/R2/PO 问答闭环、多模态导出、BU 差异和治理回流任务。
+- 基于 grill-me 范围澄清将 PRD 更新为 v0.2 决策版：首版聚焦 PEP 路径、R2/PO 问答、类 ChatGPT 主界面、自然语言长答案、文件/章节/quote Reference、GPT-4o/GPT-5 类模型下拉和 BU 差异首版可用。
+- 重写 `Design/Todo+Spec-流程问答工作台.md` 和 `Design/dev-memory/TODO.md`，从长 phase 表改为更清晰的 checkbox 执行板。
+- 前端完成一版 v0.2 UI 原型：旧右侧 ChatbotPanel 升级为主 Chat，顶部展示文档/阶段/角色和模型选择，右侧抽屉承载上下文、引用、输出和后台入口。
+- 在 `QT-Wiki-功能文档.md` 顶部补充 2026-06-09 vNext 产品收敛说明，明确 GitHub Pages 作为静态前端/静态索引/导出产物托管目标，上传和 AI 解析先由本地或后续轻量服务生成数据。
+- 新增根目录 `MEMORY.md` 与 `Design/dev-memory/`，集中保存项目记忆、会话 WIP、用户待审 TODO 和开发记忆 changelog。
+- 新增 `Design/README.md` 作为当前设计入口，并将旧首次上传/审批包框架、旧 Regulation Navigator 框架和原型资产归档到 `Design/old/`。
+- 更新 `README.md` 与 `QT-Wiki-功能文档.md` 中的设计文档路径，避免继续指向已归档的 root `Design.md`。
+
 ## 2026-04-29
 
 - 前端主工作台重排为三列：左侧为对话历史与快捷设置，中间为流程切换与流程内容，右侧为固定 chatbot，不再把 Query 当成单独页面切换。

@@ -301,6 +301,7 @@ def test_chat_query_returns_matched_pages_and_citations():
     assert response.status_code == 200
     assert payload["matched_pages"][0]["page_id"] == "质量管理体系"
     assert payload["citations"][0]["citation_id"] == "c1"
+    assert payload["suggested_questions"]
     assert "质量管理体系" in payload["answer"]
 
 
@@ -319,7 +320,19 @@ def test_agent_upload_returns_current_run_context():
     from App.api import app
 
     client = TestClient(app)
-    processed = SimpleNamespace(document_id="doc-test-0009", title="上传文档")
+    processed = SimpleNamespace(
+        document_id="doc-test-0009",
+        title="上传文档",
+        metadata={
+            "parse_status": "parsed",
+            "section_count": 3,
+            "fragment_count": 12,
+            "table_count": 1,
+            "structure_quality": {"anchor_coverage": 1.0, "section_confidence": 0.9, "noise_rate": 0.0},
+            "eval_summary": {"pass": 3, "warn": 0, "fail": 0, "na": 0},
+            "review_items": [],
+        },
+    )
     candidates = [
         SimpleNamespace(candidate_id="candidate-1", status="pending"),
         SimpleNamespace(candidate_id="candidate-2", status="pending"),
@@ -339,6 +352,48 @@ def test_agent_upload_returns_current_run_context():
     assert payload["document_id"] == "doc-test-0009"
     assert payload["review_package_id"] == "review-doc-test-0009"
     assert payload["candidate_ids"] == ["candidate-1", "candidate-2"]
+    assert payload["parse_status"] == "parsed"
+    assert payload["section_count"] == 3
+    assert payload["fragment_count"] == 12
+    assert payload["table_count"] == 1
+    assert payload["structure_quality"]["anchor_coverage"] == 1.0
+    assert payload["eval_summary"]["fail"] == 0
+    assert payload["review_items"] == []
+
+
+def test_agent_upload_skips_candidate_generation_when_parse_failed():
+    from App.api import app
+
+    client = TestClient(app)
+    processed = SimpleNamespace(
+        document_id="doc-failed-parse",
+        title="失败文档",
+        metadata={
+            "parse_status": "failed",
+            "section_count": 0,
+            "fragment_count": 0,
+            "table_count": 0,
+            "structure_quality": {"anchor_coverage": 0.0},
+            "eval_summary": {"pass": 0, "warn": 0, "fail": 2, "na": 0},
+            "review_items": [{"eval_id": "P0-02", "status": "fail"}],
+        },
+    )
+
+    with patch("App.api.process_document", return_value=processed), patch("App.api.IngestAgent.ingest") as mock_ingest:
+        response = client.post(
+            "/agent/upload",
+            files={"file": ("demo.pdf", b"fake pdf content", "application/pdf")},
+            data={"use_llm": "false"},
+        )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["parse_status"] == "failed"
+    assert payload["review_package_id"] is None
+    assert payload["proposals_created"] == 0
+    assert payload["pending_review_count"] == 0
+    assert payload["review_items"][0]["eval_id"] == "P0-02"
+    mock_ingest.assert_not_called()
 
 
 def test_ingest_runs_endpoint_returns_recent_runs(tmp_path):

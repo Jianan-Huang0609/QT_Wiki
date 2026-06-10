@@ -1,12 +1,12 @@
 # QT Wiki
 
-QT Wiki 是一个面向企业知识沉淀的分层 Wiki 系统。它不是“上传文件后直接生成页面”，而是先把文档拆成可追溯证据、对象和关系，经过人工关口确认后，再发布到 Wiki 并供 Query、映射和 slides 导出复用。
+QT Wiki 是一个面向企业流程知识的文档解析与问答工作台。当前 vNext 主线是：用户上传流程文档，系统自动解析成可追溯的章节、片段、对象和关系，然后在主 Chat 中基于公司流程进行问答，并返回文件/章节/片段级 Reference、检索链路和后续推荐问题。
 
-当前实现已经落地以下主线：
+当前实现已经落地以下基础能力：
 
-- Ingest 审批包工作流
-- 双关口发布控制
-- Query 基于已批准结构化知识回答
+- 文档上传、自动解析和可选校正工作流
+- ReviewPackage 兼容治理能力，可作为后台发布控制
+- Query 基于 Wiki 索引和已批准结构化知识回答
 - 映射矩阵与 slides 提纲导出
 - Lint 健康检查
 
@@ -34,7 +34,7 @@ Raw 层 (Raw/* 原始文档)
 
 ### 1. IngestAgent
 
-文档摄入已经从“直接生成候选页”升级为“审批包 + 候选页”双产物。
+文档摄入当前输出“解析结果 + 可选校正点 + 候选页”，并保留 ReviewPackage 作为后台治理对象。
 
 当前能力：
 
@@ -69,9 +69,9 @@ Raw 层 (Raw/* 原始文档)
 - `App/candidates/*.json`
 - `wiki/output/obsidian/Proposals/*.md`
 
-### 2. 双关口发布
+### 2. 可选校正与后台发布控制
 
-当前发布不是直接批准候选页，而是必须先通过审批包关口。
+普通用户主路径优先看解析统计、来源和问答结果；需要沉淀为正式 Wiki 页面时，再使用审批包关口进行后台确认。
 
 #### 关口 1：文档身份确认
 
@@ -183,7 +183,13 @@ Query 已经不只依赖 Wiki 摘要页。
 QT-wiki/
 ├── AGENTS.md
 ├── CHANGELOG.md
-├── Design.md
+├── MEMORY.md
+├── Design/
+│   ├── README.md
+│   ├── PRD-流程问答工作台.md
+│   ├── Todo+Spec-流程问答工作台.md
+│   ├── dev-memory/
+│   └── old/
 ├── README.md
 ├── Raw/
 ├── Tool/
@@ -221,13 +227,13 @@ QT-wiki/
 
 ### Python
 
-建议至少安装这些依赖：
+建议使用仓库根目录的依赖文件安装：
 
 ```bash
-pip install fastapi uvicorn python-multipart pytest pypdf requests openpyxl
+python -m pip install -r requirements.txt
 ```
 
-如果项目里还有其他解析器依赖，按本地实际环境补齐。
+当前依赖覆盖 FastAPI 后端、文档解析、LLM HTTP 客户端和测试运行。
 
 ### 前端
 
@@ -500,5 +506,7 @@ npx tsc --noEmit
 ## 相关文档
 
 - 架构与行为约束：[`AGENTS.md`](AGENTS.md)
-- 设计目标：[`Design.md`](Design.md)
+- 当前设计入口：[`Design/README.md`](Design/README.md)
+- vNext PRD：[`Design/PRD-流程问答工作台.md`](Design/PRD-流程问答工作台.md)
+- 开发记忆：[`MEMORY.md`](MEMORY.md)
 - 变更记录：[`CHANGELOG.md`](CHANGELOG.md)

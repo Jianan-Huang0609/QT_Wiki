@@ -58,11 +58,19 @@ import type {
 
 const navItems: NavItem[] = [
   { key: "dashboard", label: "总览", caption: "运行态势", icon: LayoutDashboard },
-  { key: "ingest", label: "摄入审核", caption: "Raw 到 Wiki", icon: FileInput },
+  { key: "ingest", label: "文档解析", caption: "自动解析", icon: FileInput },
   { key: "wiki", label: "Wiki 浏览", caption: "页面与溯源", icon: FileSearch },
   { key: "query", label: "知识问答", caption: "索引召回", icon: MessageSquareText },
   { key: "lint", label: "健康中心", caption: "风险修复", icon: ShieldAlert },
   { key: "settings", label: "设置", caption: "索引与模型", icon: Settings }
+];
+
+const defaultSuggestedQuestions = [
+  "PEP 文档的流程如何操作？",
+  "现在在 R2 阶段，我作为 PO 应该做什么？",
+  "这个流程需要输出哪些记录或模板？",
+  "这条回答具体来自哪些文件章节？",
+  "不同 BU 对这个流程有哪些差异？"
 ];
 
 interface ChatHistoryEntry {
@@ -74,8 +82,11 @@ interface ChatHistoryEntry {
   errorMessage?: string;
 }
 
+type DrawerKey = "context" | "references" | "outputs" | "admin";
+
 export default function App() {
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const [activeDrawer, setActiveDrawer] = useState<DrawerKey>("context");
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [candidates, setCandidates] = useState<CandidatePage[]>([]);
@@ -91,6 +102,7 @@ export default function App() {
   const [selectedChatId, setSelectedChatId] = useState("");
   const [question, setQuestion] = useState("风险管理在质量管理体系里扮演什么角色？");
   const [useLlm, setUseLlm] = useState(true);
+  const [modelProfile, setModelProfile] = useState("azure-gpt-4o");
   const [topKPages, setTopKPages] = useState(5);
   const [busy, setBusy] = useState<string>("");
   const [toast, setToast] = useState("后端已连接后会显示真实执行结果。");
@@ -255,11 +267,11 @@ export default function App() {
     }
   }
 
-  async function handleQuerySubmit() {
-    if (!question.trim()) {
+  async function handleQuerySubmit(questionOverride?: string) {
+    const nextQuestion = (questionOverride ?? question).trim();
+    if (!nextQuestion) {
       return;
     }
-    const nextQuestion = question.trim();
     const chatId = createChatId();
     setBusy("query");
     try {
@@ -296,6 +308,11 @@ export default function App() {
     } finally {
       setBusy("");
     }
+  }
+
+  function handleSuggestedQuestion(nextQuestion: string) {
+    setQuestion(nextQuestion);
+    void handleQuerySubmit(nextQuestion);
   }
 
   async function handleCandidateDecision(candidateId: string, decision: "approve" | "reject") {
@@ -397,9 +414,10 @@ export default function App() {
       if (result.review_package_id) {
         setSelectedPackageId(result.review_package_id);
       }
-      setToast(`文档维护已提交：${result.run_id}，已生成审批包，待发布 ${result.pending} 个候选页。LLM ${useLlm ? "已开启" : "未开启"}。`);
+      setToast(`文档已解析：${result.section_count} 个章节 / ${result.fragment_count} 个片段。低置信度内容可在解析详情中校正，LLM ${useLlm ? "已开启" : "未开启"}。`);
       await refreshWorkspaceData();
       setActiveView("ingest");
+      setActiveDrawer("context");
     } catch (error) {
       setToast(`上传失败：${errorMessage(error)}`);
     } finally {
@@ -447,132 +465,93 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <aside className="sidebar">
-        <HistoryRail
+    <div className="app process-chat-app">
+      <header className="process-header">
+        <div className="process-brand">
+          <div className="brand-mark">
+            <DatabaseZap size={22} />
+          </div>
+          <div>
+            <p className="eyebrow">QT Wiki vNext</p>
+            <h1>PEP 流程问答</h1>
+          </div>
+        </div>
+        <div className="process-status-strip" aria-label="当前上下文">
+          <span>文档 {currentDocumentId || selectedReviewPackage?.document_id || "未选择"}</span>
+          <span>BU 待识别</span>
+          <span>阶段 R2</span>
+          <span>角色 PO</span>
+        </div>
+        <div className="process-header-actions">
+          <label className="model-select">
+            <span>模型</span>
+            <select value={modelProfile} onChange={(event) => setModelProfile(event.target.value)}>
+              <option value="azure-gpt-4o">Azure GPT-4o</option>
+              <option value="azure-gpt-5">Azure GPT-5</option>
+              <option value="azure-gpt-5-multimodal">GPT-5 Multimodal</option>
+            </select>
+          </label>
+          <label className="switch-line process-switch">
+            <input type="checkbox" checked={useLlm} onChange={(event) => setUseLlm(event.target.checked)} />
+            <span>LLM</span>
+          </label>
+          <label className="upload-button process-upload">
+            <Upload size={16} />
+            上传 PEP
+            <input type="file" accept=".docx,.pdf,.pptx,.xlsx,.txt,.md" onChange={(event) => void handleUpload(event.target.files?.[0] ?? null)} />
+          </label>
+        </div>
+      </header>
+
+      <main className="process-shell">
+        <section className="process-chat-column">
+          <div className="process-chat-intro">
+            <div>
+              <p className="eyebrow">Process Chat</p>
+              <h2>问 PEP 流程、R2 阶段动作、PO 交付物和引用来源</h2>
+            </div>
+            <div className="process-metrics">
+              <Metric label="索引来源" value={String(indexStatus?.sources ?? 0)} />
+              <Metric label="已解析" value={String(reviewPackages.length)} />
+              <Metric label="低置信度" value={String(pendingPackageCount)} />
+            </div>
+          </div>
+          <ChatbotPanel
+            question={question}
+            setQuestion={setQuestion}
+            activeChatEntry={activeChatEntry}
+            activeView={currentFlowView}
+            busy={busy}
+            selectedCitation={selectedCitation}
+            selectedReviewPackage={selectedReviewPackage}
+            selectedPage={selectedPage}
+            issues={issues}
+            onSubmit={() => void handleQuerySubmit()}
+            onAskSuggested={handleSuggestedQuestion}
+            onSelectCitation={setSelectedCitationId}
+          />
+        </section>
+
+        <ProcessDrawer
+          activeDrawer={activeDrawer}
+          setActiveDrawer={setActiveDrawer}
+          activeChatResult={activeChatResult}
+          selectedCitation={selectedCitation}
+          selectedReviewPackage={selectedReviewPackage}
+          selectedPage={selectedPage}
+          selectedCitationId={selectedCitationId}
+          currentDocumentId={currentDocumentId}
+          ingestRuns={ingestRuns}
+          issues={issues}
           indexStatus={indexStatus}
-          useLlm={useLlm}
-          setUseLlm={setUseLlm}
-          topKPages={topKPages}
-          setTopKPages={setTopKPages}
-          chatHistory={chatHistory}
-          selectedChatId={selectedChatId}
-          onSelectChat={handleSelectChat}
+          activeView={currentFlowView}
+          workflowItems={workflowItems}
+          setActiveView={setActiveView}
+          onSelectCitation={setSelectedCitationId}
+          onSelectRun={handleSelectRun}
           onRebuildIndex={() => void handleRebuildIndex()}
           busy={busy}
         />
-      </aside>
-
-      <main className="main">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Raw / Parsed / Wiki / Index / Schema</p>
-            <h1>{titleForView(currentFlowView)}</h1>
-          </div>
-          <div className="flow-tabs">
-            {workflowItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  className={`flow-tab ${currentFlowView === item.key ? "active" : ""}`}
-                  key={item.key}
-                  type="button"
-                  onClick={() => setActiveView(item.key)}
-                >
-                  <Icon size={16} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </header>
-
-        <section className="content-grid">
-          <div className="workspace">
-            {currentFlowView === "dashboard" && (
-              <DashboardView
-                agents={agents}
-                indexStatus={indexStatus}
-                pages={pages}
-                pendingPackageCount={pendingPackageCount}
-                pendingCandidateCount={pendingCandidateCount}
-                openIssueCount={openIssueCount}
-                onNavigate={setActiveView}
-              />
-            )}
-            {currentFlowView === "ingest" && (
-              <IngestView
-                reviewPackages={visibleReviewPackages}
-                candidates={visibleCandidates}
-                selected={selectedReviewPackage}
-                selectedId={selectedPackageId}
-                relatedCandidates={relatedCandidates}
-                busy={busy}
-                ingestRuns={ingestRuns}
-                currentDocumentId={currentDocumentId}
-                ingestFilter={ingestFilter}
-                ingestFilterCounts={ingestFilterCounts}
-                decisionBusinessType={decisionBusinessType}
-                decisionEffectiveLevel={decisionEffectiveLevel}
-                decisionIsBinding={decisionIsBinding}
-                decisionNotes={decisionNotes}
-                decisionReviewedBy={decisionReviewedBy}
-                useLlm={useLlm}
-                setUseLlm={setUseLlm}
-                relationDecisionNotes={relationDecisionNotes}
-                relationReviewedBy={relationReviewedBy}
-                onSelect={setSelectedPackageId}
-                onIngestFilterChange={setIngestFilter}
-                onSelectRun={handleSelectRun}
-                onClearCurrentSession={handleClearCurrentSession}
-                onDecisionBusinessType={setDecisionBusinessType}
-                onDecisionEffectiveLevel={setDecisionEffectiveLevel}
-                onDecisionIsBinding={setDecisionIsBinding}
-                onDecisionNotes={setDecisionNotes}
-                onDecisionReviewedBy={setDecisionReviewedBy}
-                onRelationDecisionNotes={setRelationDecisionNotes}
-                onRelationReviewedBy={setRelationReviewedBy}
-                onDecision={(id, decision) => void handleCandidateDecision(id, decision)}
-                onReviewDecision={(decision) => void handleReviewDecision(decision)}
-                onRelationReviewDecision={(decision) => void handleRelationReviewDecision(decision)}
-                onUpload={(file) => void handleUpload(file)}
-              />
-            )}
-            {currentFlowView === "wiki" && (
-              <WikiView pages={pages} selected={selectedPage} selectedId={selectedPageId} onSelect={setSelectedPageId} />
-            )}
-            {currentFlowView === "lint" && <LintView issues={issues} busy={busy} onScan={() => void handleLintScan()} />}
-            {currentFlowView === "settings" && (
-              <SettingsView
-                indexStatus={indexStatus}
-                useLlm={useLlm}
-                setUseLlm={setUseLlm}
-                onRebuild={handleRebuildIndex}
-                onLoadMappingMatrix={handleLoadMappingMatrix}
-                onLoadSlidesOutline={handleLoadSlidesOutline}
-                mappingMatrixExport={mappingMatrixExport}
-                slidesOutlineExport={slidesOutlineExport}
-                busy={busy}
-              />
-            )}
-          </div>
-
-          <aside className="context-panel">
-            <ChatbotPanel
-              question={question}
-              setQuestion={setQuestion}
-              activeChatEntry={activeChatEntry}
-              activeView={currentFlowView}
-              busy={busy}
-              selectedCitation={selectedCitation}
-              selectedReviewPackage={selectedReviewPackage}
-              selectedPage={selectedPage}
-              issues={issues}
-              onSubmit={() => void handleQuerySubmit()}
-              onSelectCitation={setSelectedCitationId}
-            />
-          </aside>
-        </section>
       </main>
 
       <div className="toast" role="status">
@@ -605,14 +584,14 @@ function DashboardView({
       <section className="hero-panel">
         <div>
           <p className="eyebrow">Operational Console</p>
-          <h2>把三个 Agent 变成可审计的知识生产线</h2>
+          <h2>把文档解析、证据索引和流程问答串起来</h2>
           <p>
-            摄入负责候选页，查询负责索引召回，Lint 负责健康风险。前端把证据、审核和状态放在同一张工作台上。
+            上传文档后先形成章节、片段、对象和关系，主 Chat 负责基于索引召回答案，抽屉面板持续展示来源、检索链路和风险提示。
           </p>
         </div>
         <div className="hero-metrics">
           <Metric label="Wiki 页面" value={String(pages.length)} />
-          <Metric label="待确认包" value={String(pendingPackageCount)} />
+          <Metric label="待校正" value={String(pendingPackageCount)} />
           <Metric label="待审核" value={String(pendingCandidateCount)} />
           <Metric label="健康问题" value={String(openIssueCount)} />
           <Metric label="来源索引" value={String(indexStatus?.sources ?? 0)} />
@@ -641,7 +620,7 @@ function DashboardView({
           <GitBranch size={18} />
           <h3>标准链路</h3>
         </div>
-        {["Raw 文档入库", "Parsed fragments 生成", "Markdown proposal 审核", "Wiki 页面发布", "Index 自动重建", "Query 受控回答"].map((item, index) => (
+        {["Raw 文档入库", "Parsed fragments 生成", "解析结果可选校正", "Wiki 页面发布", "Index 自动重建", "Query 受控回答"].map((item, index) => (
           <div className="pipeline-step" key={item}>
             <span>{index + 1}</span>
             <strong>{item}</strong>
@@ -738,7 +717,7 @@ function IngestView({
         <div className="pane-toolbar">
           <div>
             <p className="eyebrow">IngestAgent</p>
-            <h2>审批包审核</h2>
+            <h2>文档解析与可选校正</h2>
           </div>
           <label className="upload-button">
             <Upload size={16} />
@@ -779,8 +758,8 @@ function IngestView({
             {ingestFilter === "current"
               ? currentDocumentId || "当前还没有本次上传文档"
               : ingestFilter === "pending"
-                ? "只看待审核审批包"
-                : "展示历史审批包"}
+                ? "查看需要校正的解析结果"
+                : "展示历史解析结果"}
           </span>
         </div>
         <div className="workspace-summary">
@@ -842,7 +821,7 @@ function IngestView({
               </button>
             ))
           ) : (
-            <EmptyState title="当前过滤器下没有审批包" text="切换到“仅待审核”或“全部历史”，或先上传新文档。" />
+            <EmptyState title="当前过滤器下没有解析结果" text="切换到“仅待校正”或“全部历史”，或先上传新文档。" />
           )}
         </div>
       </section>
@@ -1065,7 +1044,7 @@ function IngestView({
             </div>
           </>
         ) : (
-          <EmptyState title="暂无审批包" text="上传文档或运行 IngestAgent 后，这里会出现审批包。" />
+          <EmptyState title="暂无解析结果" text="上传文档或运行 IngestAgent 后，这里会出现文档解析详情。" />
         )}
       </section>
     </div>
@@ -1215,7 +1194,7 @@ function HistoryRail({
               </button>
             ))
           ) : (
-            <EmptyState title="暂无对话" text="在右侧 chatbot 提问后，这里会保留历史记录。" />
+            <EmptyState title="暂无对话" text="在主 Chat 提问后，这里会保留历史记录。" />
           )}
         </div>
       </section>
@@ -1234,6 +1213,7 @@ function ChatbotPanel({
   selectedPage,
   issues,
   onSubmit,
+  onAskSuggested,
   onSelectCitation,
 }: {
   question: string;
@@ -1246,6 +1226,7 @@ function ChatbotPanel({
   selectedPage?: WikiPage;
   issues: LintIssue[];
   onSubmit: () => void;
+  onAskSuggested: (question: string) => void;
   onSelectCitation: (id: string) => void;
 }) {
   const refs = activeView === "ingest" ? selectedReviewPackage?.source_refs : selectedPage?.source_refs;
@@ -1255,14 +1236,15 @@ function ChatbotPanel({
     : activeView === "ingest" && selectedReviewPackage?.tool_trace.length
       ? selectedReviewPackage.tool_trace
       : ["load index", "rank pages", "load source refs"];
+  const suggestedQuestions = result?.suggested_questions?.length ? result.suggested_questions : defaultSuggestedQuestions;
 
   return (
     <div className="chatbot-shell">
       <section className="chatbot-card chatbot-composer">
         <div className="composer-head">
           <div>
-            <p className="eyebrow">Chatbot</p>
-            <h2>知识问答</h2>
+            <p className="eyebrow">Process Chat</p>
+            <h2>流程问答</h2>
           </div>
           {activeChatEntry ? <span className="chatbot-mode">{result?.used_llm ? "LLM" : activeChatEntry.status === "error" ? "失败" : "规则"}</span> : null}
         </div>
@@ -1271,9 +1253,17 @@ function ChatbotPanel({
           <textarea
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="围绕当前 wiki 和审批结果提问"
+            placeholder="问公司流程怎么做、当前阶段要交付什么、引用来自哪里"
           />
         </label>
+        <div className="suggestion-row" aria-label="推荐问题">
+          {suggestedQuestions.slice(0, 5).map((item) => (
+            <button key={item} type="button" onClick={() => onAskSuggested(item)} disabled={busy === "query"}>
+              <Sparkles size={14} />
+              <span>{item}</span>
+            </button>
+          ))}
+        </div>
         <button className="primary-action" type="button" onClick={onSubmit}>
           {busy === "query" ? <Loader2 className="spin" size={16} /> : <Sparkles size={16} />}
           提问
@@ -1306,7 +1296,7 @@ function ChatbotPanel({
             <EmptyState title="暂无答案" text="当前对话还没有可展示的回答。" />
           )
         ) : (
-          <EmptyState title="开始提问" text="右侧问答会始终保留，不会因为中间流程切换而中断。" />
+          <EmptyState title="开始提问" text="主 Chat 会保留当前对话，文档、引用和输出可在抽屉中查看。" />
         )}
       </section>
 
@@ -1332,7 +1322,7 @@ function ChatbotPanel({
         </div>
         <div className="chatbot-context-block">
           <p className="eyebrow">Trace</p>
-          <h3>轨迹与风险</h3>
+          <h3>检索链路与风险</h3>
           <div className="trace-list">
             {trace.map((item) => (
               <span key={item}>{item}</span>
@@ -1349,6 +1339,243 @@ function ChatbotPanel({
         </div>
       </section>
     </div>
+  );
+}
+
+function ProcessDrawer({
+  activeDrawer,
+  setActiveDrawer,
+  activeChatResult,
+  selectedCitation,
+  selectedReviewPackage,
+  selectedPage,
+  selectedCitationId,
+  currentDocumentId,
+  ingestRuns,
+  issues,
+  indexStatus,
+  activeView,
+  workflowItems,
+  setActiveView,
+  onSelectCitation,
+  onSelectRun,
+  onRebuildIndex,
+  busy,
+}: {
+  activeDrawer: DrawerKey;
+  setActiveDrawer: (value: DrawerKey) => void;
+  activeChatResult: QueryResult | null;
+  selectedCitation?: Citation;
+  selectedReviewPackage?: ReviewPackage;
+  selectedPage?: WikiPage;
+  selectedCitationId: string;
+  currentDocumentId: string;
+  ingestRuns: IngestRunSummary[];
+  issues: LintIssue[];
+  indexStatus: IndexStatus | null;
+  activeView: ViewKey;
+  workflowItems: NavItem[];
+  setActiveView: (value: ViewKey) => void;
+  onSelectCitation: (id: string) => void;
+  onSelectRun: (run: IngestRunSummary) => void;
+  onRebuildIndex: () => void;
+  busy: string;
+}) {
+  const refs = selectedReviewPackage?.source_refs?.length ? selectedReviewPackage.source_refs : selectedPage?.source_refs ?? [];
+  const trace = activeChatResult?.trace?.length ? activeChatResult.trace : selectedReviewPackage?.tool_trace ?? [];
+  const drawerTabs: { key: DrawerKey; label: string }[] = [
+    { key: "context", label: "上下文" },
+    { key: "references", label: "引用" },
+    { key: "outputs", label: "输出" },
+    { key: "admin", label: "后台" },
+  ];
+
+  return (
+    <aside className="process-drawer" aria-label="流程问答抽屉">
+      <div className="drawer-tabs" role="tablist" aria-label="抽屉面板">
+        {drawerTabs.map((tab) => (
+          <button
+            className={activeDrawer === tab.key ? "active" : ""}
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={activeDrawer === tab.key}
+            onClick={() => setActiveDrawer(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeDrawer === "context" && (
+        <div className="drawer-body">
+          <section className="drawer-card">
+            <p className="eyebrow">Current Scope</p>
+            <h2>文档上下文</h2>
+            <div className="context-facts">
+              <span>当前文档</span>
+              <strong>{currentDocumentId || selectedReviewPackage?.document_id || "未选择"}</strong>
+              <span>标题</span>
+              <strong>{selectedReviewPackage?.title || selectedPage?.title || "PEP 流程文档"}</strong>
+              <span>状态</span>
+              <strong>{selectedReviewPackage ? humanStatus(selectedReviewPackage.identity_decision) : "待选择"}</strong>
+            </div>
+          </section>
+
+          <section className="drawer-card metric-strip-card">
+            <Metric label="索引来源" value={String(indexStatus?.sources ?? 0)} />
+            <Metric label="Wiki 页面" value={String(indexStatus?.pages ?? 0)} />
+            <Metric label="低置信度" value={String(issues.filter((issue) => issue.severity !== "low").length)} />
+          </section>
+
+          <section className="drawer-card">
+            <div className="section-title compact">
+              <div className="section-title-label">
+                <History size={16} />
+                <h3>最近上传</h3>
+              </div>
+            </div>
+            <div className="drawer-run-list">
+              {ingestRuns.slice(0, 4).map((run) => (
+                <button className="run-card" key={run.run_id} type="button" onClick={() => onSelectRun(run)}>
+                  <strong>{run.file_name || run.document_id}</strong>
+                  <span>{formatRunTimestamp(run.created_at)}</span>
+                  <span>{run.use_llm ? "LLM" : "Rule"} · {run.proposals_created} proposals</span>
+                </button>
+              ))}
+              {!ingestRuns.length ? <EmptyState title="暂无上传" text="上传 PEP 后会在这里显示处理记录。" /> : null}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {activeDrawer === "references" && (
+        <div className="drawer-body">
+          <section className="drawer-card">
+            <p className="eyebrow">Selected Evidence</p>
+            <h2>Reference</h2>
+            {selectedCitation ? (
+              <SourceBlock
+                refItem={{
+                  document_id: selectedCitation.document_id ?? "",
+                  fragment_id: selectedCitation.fragment_id,
+                  file_name: selectedCitation.file_name,
+                  anchor_label: selectedCitation.anchor_label,
+                  quote: selectedCitation.quote,
+                }}
+              />
+            ) : refs.length ? (
+              refs.slice(0, 3).map((ref) => <SourceBlock key={`${ref.document_id}-${ref.fragment_id ?? ref.anchor_label}`} refItem={ref} />)
+            ) : (
+              <EmptyState title="暂无引用" text="提问后会显示命中的文件、章节和 quote。" />
+            )}
+          </section>
+
+          <section className="drawer-card">
+            <h3>回答引用</h3>
+            <div className="citation-list">
+              {activeChatResult?.citations.length ? (
+                activeChatResult.citations.map((citation) => (
+                  <button
+                    className={selectedCitationId === citation.citation_id ? "active" : ""}
+                    key={citation.citation_id}
+                    type="button"
+                    onClick={() => onSelectCitation(citation.citation_id)}
+                  >
+                    <strong>{citation.page_title || citation.file_name}</strong>
+                    <span>{citation.anchor_label || citation.fragment_id || "章节待定位"}</span>
+                  </button>
+                ))
+              ) : (
+                <EmptyState title="等待答案" text="完成一次问答后，这里会列出全部引用。" />
+              )}
+            </div>
+          </section>
+
+          <section className="drawer-card">
+            <h3>Trace</h3>
+            <div className="trace-list drawer-trace-list">
+              {trace.length ? trace.map((item) => <span key={item}>{item}</span>) : <span>ready</span>}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {activeDrawer === "outputs" && (
+        <div className="drawer-body">
+          <section className="drawer-card">
+            <p className="eyebrow">Assets</p>
+            <h2>输出资产</h2>
+            <div className="output-grid">
+              <article className="output-tile ready">
+                <Archive size={18} />
+                <strong>Markdown</strong>
+                <span>answer.md</span>
+              </article>
+              <article className="output-tile ready">
+                <FileSearch size={18} />
+                <strong>Reference 表</strong>
+                <span>references.md</span>
+              </article>
+              <article className="output-tile draft">
+                <GitBranch size={18} />
+                <strong>Mermaid</strong>
+                <span>flow.mmd</span>
+              </article>
+              <article className="output-tile draft">
+                <Activity size={18} />
+                <strong>BU Diff</strong>
+                <span>bu-diff.md</span>
+              </article>
+            </div>
+          </section>
+          <section className="drawer-card">
+            <h3>当前答案</h3>
+            {activeChatResult ? (
+              <div className="export-preview compact-export-preview">
+                <strong>{activeChatResult.used_llm ? "LLM" : "Rule"} · {activeChatResult.confidence}</strong>
+                <p>{activeChatResult.answer.slice(0, 240)}</p>
+              </div>
+            ) : (
+              <EmptyState title="暂无答案" text="完成问答后可生成 Markdown、Reference 和流程图资产。" />
+            )}
+          </section>
+        </div>
+      )}
+
+      {activeDrawer === "admin" && (
+        <div className="drawer-body">
+          <section className="drawer-card">
+            <p className="eyebrow">Background Console</p>
+            <h2>{titleForView(activeView)}</h2>
+            <div className="admin-nav-grid">
+              {workflowItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button className={activeView === item.key ? "active" : ""} key={item.key} type="button" onClick={() => setActiveView(item.key)}>
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+          <section className="drawer-card">
+            <div className={`index-chip ${indexStatus?.state ?? "missing"}`}>
+              <span />
+              <div>
+                <strong>{formatIndexState(indexStatus?.state)}</strong>
+                <small>{indexStatus?.lastBuilt ?? "not built"}</small>
+              </div>
+            </div>
+            <button className="icon-text-button" type="button" onClick={onRebuildIndex}>
+              {busy === "index" ? <Loader2 className="spin" size={16} /> : <RefreshCw size={16} />}
+              重建索引
+            </button>
+          </section>
+        </div>
+      )}
+    </aside>
   );
 }
 

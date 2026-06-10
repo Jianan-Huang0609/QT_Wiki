@@ -24,7 +24,9 @@ from App.schemas import (
     ReviewPackageRelationDecisionRequest,
 )
 from Tool.document_processor import process_document
+from Tool.contracts.canonical import load_canonical_document
 from Tool.pipelines.common import PARSED_DIR
+from Tool.workflows.document_parse import build_parse_workflow_summary
 from wiki.builders.bootstrap import PAGE_BLUEPRINTS, bootstrap_pages
 from wiki.indexing import build_index, load_page_index, rank_page_index
 from wiki.models.page import WikiPage
@@ -179,6 +181,47 @@ def wiki_pages() -> dict[str, list[dict[str, Any]]]:
     return {"items": pages}
 
 
+@app.get("/api/documents/{document_id}/parse-summary")
+def document_parse_summary(document_id: str) -> dict[str, Any]:
+    canonical = _load_parsed_document(document_id)
+    workflow = _parse_workflow_payload(canonical)
+    return {
+        "document_id": canonical.document.document_id,
+        "file_name": canonical.document.file_name,
+        "title": canonical.document.title,
+        "parse_status": workflow.get("parse_status", canonical.parse_status),
+        "section_count": len(canonical.sections),
+        "fragment_count": len(canonical.fragments),
+        "table_count": len(canonical.tables),
+        "structure_quality": workflow.get("structure_quality", {}),
+        "eval_summary": workflow.get("eval_summary", {}),
+        "review_items": workflow.get("review_items", []),
+        "parse_workflow": workflow,
+    }
+
+
+@app.get("/api/documents/{document_id}/sections")
+def document_sections(document_id: str) -> dict[str, Any]:
+    canonical = _load_parsed_document(document_id)
+    fragment_counts: dict[str | None, int] = {}
+    for fragment in canonical.fragments:
+        fragment_counts[fragment.section_id] = fragment_counts.get(fragment.section_id, 0) + 1
+    return {
+        "document_id": canonical.document.document_id,
+        "items": [
+            {
+                "section_id": section.section_id,
+                "title": section.title,
+                "level": section.level,
+                "parent_id": section.parent_id,
+                "page_range": section.page_range,
+                "fragment_count": fragment_counts.get(section.section_id, 0),
+            }
+            for section in canonical.sections
+        ],
+    }
+
+
 @app.post("/chat/reindex")
 def reindex() -> dict[str, Any]:
     pages = _ensure_runtime_ready(force_bootstrap_if_empty=True)
@@ -235,6 +278,7 @@ def chat_query(payload: ChatQueryRequest) -> ChatQueryResponse:
         matched_pages=matched_pages,
         citations=citations,
         structured_matches=structured_context["packages"],
+        suggested_questions=_suggested_questions(question, matched_pages, structured_context),
         trace=[
             f"wiki pages ready: {len(pages)}",
             "load pages.jsonl",
@@ -278,12 +322,16 @@ async def agent_upload(
     target.write_bytes(await file.read())
 
     processed = process_document(target)
-    candidates = IngestAgent().ingest(processed.document_id, use_llm=use_llm)
+    processed_metadata = getattr(processed, "metadata", {}) or {}
+    parse_status = str(processed_metadata.get("parse_status", "unknown"))
+    eval_summary = dict(processed_metadata.get("eval_summary", {}))
+    parse_blocks_ingest = parse_status in {"failed", "ocr_required"} or int(eval_summary.get("fail", 0)) > 0
+    candidates = [] if parse_blocks_ingest else IngestAgent().ingest(processed.document_id, use_llm=use_llm)
     run_id = datetime.now().strftime("%Y%m%d%H%M%S")
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     run_path = RUN_DIR / f"{run_id}.json"
     pending_count = len([item for item in candidates if item.status == "pending"])
-    review_package_id = f"review-{processed.document_id}"
+    review_package_id = None if parse_blocks_ingest else f"review-{processed.document_id}"
     candidate_ids = [item.candidate_id for item in candidates]
     run_path.write_text(
         json.dumps(
@@ -293,6 +341,13 @@ async def agent_upload(
                 "document_id": processed.document_id,
                 "review_package_id": review_package_id,
                 "candidate_ids": candidate_ids,
+                "parse_status": parse_status,
+                "section_count": processed_metadata.get("section_count", 0),
+                "fragment_count": processed_metadata.get("fragment_count", 0),
+                "table_count": processed_metadata.get("table_count", 0),
+                "structure_quality": processed_metadata.get("structure_quality", {}),
+                "eval_summary": processed_metadata.get("eval_summary", {}),
+                "review_items": processed_metadata.get("review_items", []),
                 "documents_parsed": 1,
                 "proposals_created": len(candidates),
                 "pages_published": 0,
@@ -309,6 +364,13 @@ async def agent_upload(
         run_id=run_id,
         document_id=processed.document_id,
         file_name=file.filename,
+        parse_status=parse_status,
+        section_count=int(processed_metadata.get("section_count", 0)),
+        fragment_count=int(processed_metadata.get("fragment_count", 0)),
+        table_count=int(processed_metadata.get("table_count", 0)),
+        structure_quality=dict(processed_metadata.get("structure_quality", {})),
+        eval_summary=dict(processed_metadata.get("eval_summary", {})),
+        review_items=list(processed_metadata.get("review_items", [])),
         review_package_id=review_package_id,
         candidate_ids=candidate_ids,
         documents_parsed=1,
@@ -329,7 +391,7 @@ def _agent_summaries(candidates: list[Any], review_packages: list[Any], issues: 
             "key": "ingest",
             "name": "IngestAgent",
             "status": "ready" if pending_packages == 0 and pending_candidates == 0 else "running",
-            "headline": f"{pending_packages} 个审批包待确认，{pending_candidates} 个候选页待发布",
+            "headline": f"{pending_packages} 个解析结果待校正，{pending_candidates} 个候选页待发布",
             "queue": max(pending_packages, pending_candidates),
             "lastRun": index_status["lastBuilt"],
             "accent": "teal",
@@ -368,6 +430,21 @@ def _candidate_payload(candidate: Any) -> dict[str, Any]:
         "related_titles": candidate.content.get("related_titles", []),
         "source_refs": [{"document_id": item} for item in candidate.source_doc_ids],
     }
+
+
+def _load_parsed_document(document_id: str):
+    parsed_path = PARSED_DIR / f"{document_id}.json"
+    if not parsed_path.exists():
+        raise HTTPException(status_code=404, detail=f"Parsed document not found: {document_id}")
+    return load_canonical_document(parsed_path)
+
+
+def _parse_workflow_payload(canonical: Any) -> dict[str, Any]:
+    workflow = canonical.document.metadata.get("parse_workflow")
+    if workflow:
+        return workflow
+    parser_name = str(canonical.document.metadata.get("parser_name", f"{canonical.document.source_type}_parser"))
+    return build_parse_workflow_summary(canonical, parser_name=parser_name)
 
 
 def _load_recent_runs(limit: int = 12) -> list[dict[str, Any]]:
@@ -682,6 +759,43 @@ def _confidence_label(value: float) -> str:
     if value >= 0.35:
         return "medium"
     return "low"
+
+
+def _suggested_questions(
+    question: str,
+    matched_pages: list[dict[str, Any]],
+    structured_context: dict[str, Any],
+) -> list[str]:
+    normalized = question.lower()
+    suggestions: list[str] = []
+    if "r2" in normalized or "po" in normalized:
+        suggestions.extend(
+            [
+                "R2 阶段的入口条件和出口条件分别是什么？",
+                "R2 阶段 PO 需要准备哪些记录或模板？",
+                "R2 阶段哪些职责需要 RA、QA 或 PM 参与？",
+            ]
+        )
+    if "reference" in normalized or "引用" in question or "来源" in question:
+        suggestions.append("把这些结论按文件、章节和 quote 列成 Reference 表。")
+    if structured_context.get("relations"):
+        suggestions.append("这些流程步骤分别由哪些角色负责，产出哪些记录？")
+    if matched_pages:
+        first_title = str(matched_pages[0].get("title", "")).strip()
+        if first_title:
+            suggestions.append(f"基于《{first_title}》生成一个可粘贴到飞书的流程说明。")
+    suggestions.extend(
+        [
+            "PEP 文档的流程如何操作？",
+            "现在在 R2 阶段，我作为 PO 应该做什么？",
+            "不同 BU 对这个流程有哪些差异？",
+        ]
+    )
+    deduped: list[str] = []
+    for item in suggestions:
+        if item and item not in deduped:
+            deduped.append(item)
+    return deduped[:5]
 
 
 def _lint_items(report: Any) -> list[dict[str, Any]]:

@@ -144,6 +144,9 @@ export async function uploadDocument(
   document_id?: string;
   review_package_id?: string;
   candidate_ids: string[];
+  parse_status: string;
+  section_count: number;
+  fragment_count: number;
   pending: number;
   pending_review_count: number;
 }> {
@@ -155,6 +158,9 @@ export async function uploadDocument(
     document_id?: string;
     review_package_id?: string;
     candidate_ids?: string[];
+    parse_status?: string;
+    section_count?: number;
+    fragment_count?: number;
     pending?: number;
     pending_review_count?: number;
   }>("/agent/upload", {
@@ -167,6 +173,9 @@ export async function uploadDocument(
     document_id: payload.document_id,
     review_package_id: payload.review_package_id,
     candidate_ids: payload.candidate_ids ?? [],
+    parse_status: payload.parse_status ?? "unknown",
+    section_count: payload.section_count ?? 0,
+    fragment_count: payload.fragment_count ?? 0,
     pending,
     pending_review_count: pending
   };

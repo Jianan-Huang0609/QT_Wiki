@@ -165,6 +165,7 @@ export interface QueryResult {
   matched_pages: MatchedPage[];
   citations: Citation[];
   trace: string[];
+  suggested_questions?: string[];
   structured_matches?: StructuredMatch[];
 }
 
