@@ -16,6 +16,7 @@ Harness：`repo-dev-harness`
 - Session 上传：自动解析并显示状态小标，暂不进入人工审核。
 - Workflow：HTML note、飞书 Markdown、Reference 表、Mermaid、BU diff、Publish note。
 - 旧框架：隐藏为后台能力，代码先保留。
+- Design 计划入口：[../TODO.md](../TODO.md) 是唯一阶段计划入口，计划、方案、TODO 都按 Phase 展开；外部 Plan / Review / Notes 只作为附件。
 
 ## 2. Now
 
@@ -29,7 +30,7 @@ Harness：`repo-dev-harness`
   - 证据：[../Todo+Spec-流程问答工作台.md](../Todo+Spec-流程问答工作台.md) 第一屏能看到 Phase 0/1/2/3 待办。
 
 - [x] 同步 Design 入口和开发记忆。
-  - 证据：[../README.md](../README.md)、[PROJECT-MEMORY.md](PROJECT-MEMORY.md)、[SESSION-WIP.md](SESSION-WIP.md)、[CHANGELOG.md](CHANGELOG.md) 与当前决策一致。
+  - 证据：[../TODO.md](../TODO.md) 成为唯一阶段计划入口，计划/方案/TODO 按 Phase 0-5 展开；[../README.md](../README.md) 改为附件导航；[PROJECT-MEMORY.md](PROJECT-MEMORY.md)、[SESSION-WIP.md](SESSION-WIP.md)、[CHANGELOG.md](CHANGELOG.md) 与当前决策一致。
 
 - [x] 更新 PRD 为 NotebookLM 式 v0.3。
   - 证据：[../PRD-流程问答工作台.md](../PRD-流程问答工作台.md) 当前版本为 v0.3，MVP 明确为正式互动 Session。
@@ -52,15 +53,28 @@ Harness：`repo-dev-harness`
 - [ ] RAG/LLM 路径：Selected Docs 和 All Sources 走 RAG，小范围章节走局部 LLM 直接读。
 - [ ] Multi-input Parser 增强：PDF/DOCX/XLSX/PPTX/Markdown 章节化、页眉页脚/结构清理、Markdown parser。
 - [x] Parser Quality Evals：解析稳定性、抓取缺口、章节漂移、章节树错误、复杂表格/图片风险、LLM 输出缺证据。
-  - 证据：`Tool/evals/parser_quality.py` 接入 workflow summary；最终验证 `89 passed`。
-- [ ] Retrieval / Answer Evals：RAG 召回质量、citation 完整性、回答 groundedness、缺口说明。
-- [ ] Section Index / Retrieval Tool：生成 section chunks，并按 session source scope 检索。
+  - 证据：`Tool/evals/parser_quality.py` 接入 workflow summary，PEP 文档控制页眉/目录点线噪音和孤立深层章节已进入 P2-03/P2-01；最终验证 `97 passed`。
+- [x] Retrieval Evals：RAG 召回质量、source scope、History/template change 降权。
+  - 证据：`Tool/evals/retrieval_eval.py`、`Tool/retrieval/section_index.py`；CT / MI / XP smoke 两条 retrieval cases `recall_at_k=1.0`；最终验证 `109 passed`。
+- [ ] Answer Evals：citation 完整性、回答 groundedness、缺口说明、自适应格式、企业关键词归一。
+- [x] Section Index / Retrieval Tool：生成 section chunks，并按 session source scope 检索。
+  - 证据：`Tool/chunking/section_chunks.py`、`/api/documents/{document_id}/chunks`、`retrieve_sections()` 支持 all_sources / selected_docs / selected_sections；最终验证 `109 passed`。
 - [x] Gate 1：Parser Contract + eval_summary 口径，用户核查后进入 Markdown parser。
   - 证据：`Tool/workflows/document_parse.py`、`/api/documents/{document_id}/parse-summary`、`/api/documents/{document_id}/sections`、`/agent/upload` 扩展字段；最终验证 `89 passed`。
 - [x] Gate 2：Markdown parser + line anchors，用户核查章节树和 Reference 粒度。
   - 证据：`Tool/parsers/markdown_parser.py` 已支持 `.md` heading、paragraph/list/code/table block 和 line anchors；最终验证 `89 passed`。
 - [ ] Gate 1/2 人工核查：确认 parse_status、eval_summary、review_items 和 Markdown Reference 粒度。
-- [ ] Gate 3：PEP PDF/DOCX 章节化，用户核查 R2/R3 关键章节树和页眉清理。
+- [x] Gate 3 PDF/DOCX Chapterization MVP：共享 heading detector 覆盖 DOCX Heading 样式、compact 编号标题、字母子标题、PDF R 阶段标题和重复页眉清理。
+  - 证据：`Tool/parsers/structure.py`、`Tool/parsers/pdf_parser.py`、`Tool/parsers/docx_parser.py`；最终验证 `92 passed`。
+- [ ] Gate 3 PEP PDF smoke + 人工核查：自动 smoke 已跑 CT / MI / XP PEP，页眉和目录点线噪音已接入 P2-03 + PDF 清理，剩余章节树风险进入 `needs_review`；用户核查 R2/R3 关键章节树和 Reference 粒度。
+  - 最新进展：CT 反馈驱动的 Content/TOC、History table、figure caption、标题续行修复已完成；三份 PEP 均生成 History table 和 figure caption candidate，rootless child sections 清零。
+  - 待核查：P2-01 level jump、4.3.x / 5.3.x parent 错层、R2/PO evidence 是否命中正文流程。
+- [x] Gate 4/5 Section Chunk + Retrieval Eval MVP：section chunks、source refs、retrieval strategy trace、retrieval eval cases。
+  - 证据：CT 146 chunks / MI 93 chunks / XP 163 chunks；CT 7.16 selected-docs 检索排第一；R2 查询回到 R2 正文/裁剪规则；最终验证 `109 passed`。
+- [ ] Gate 6 Adaptive Answer Workflow：自适应主 Chat 回答，先解析 question intent 和企业关键词，再把 retrieval hits 转成 AnswerEvidencePackage，固定 citation、abstention 和非模板化输出 contract。
+  - 执行入口：[../TODO.md](../TODO.md) Phase 4；历史方案附件：[../Gate6-Adaptive-Answer-Workflow-Plan.md](../Gate6-Adaptive-Answer-Workflow-Plan.md)。
+  - 最新进展：G6-01/02/03 已完成，`Tool/workflows/answer.py` 固化 `QuestionIntent`、企业关键词归一和 `AnswerEvidencePackage`；验证 `compileall`、`pytest`、`git diff --check`、diagnostics 通过，当前 `114 passed`。
+- [ ] Gate 7 Visual OCR / Multimodal pipeline：基于 `visual_review_items` 做 crop、OCR 或 multimodal 候选，并进入人工 review。
 
 ## 4. Done
 
@@ -76,6 +90,11 @@ Harness：`repo-dev-harness`
 - [x] 确认 parser/RAG 实施顺序：先 Markdown 打通 contract/workflow/eval/API，再逐步接入 PDF/DOCX/XLSX 和 Retrieval。
 - [x] 完成 Gate 1 Parser Workflow Contract 与 Markdown parser MVP。
 - [x] 完成 Parser Quality Eval MVP，动态捕捉章节漂移、抓取缺口、章节树错误、复杂表格/图片风险和 LLM 输出缺证据。
+- [x] 完成 Gate 3 PEP smoke 检查机制补强：文档控制页眉、目录点线噪音和孤立深层章节进入 workflow eval/review items。
+- [x] 完成 CT 反馈驱动的 PDF parser 修复，并新增 [../Pro-Input-Praser.md](../Pro-Input-Praser.md) 经验文档。
+- [x] 完成 Section Chunk / Retrieval Eval / Visual Review Queue MVP。
+- [x] 整理 Design 目录上层入口和阶段计划。
+  - 证据：[../TODO.md](../TODO.md) 成为 Design 唯一阶段计划入口；[../README.md](../README.md) 改为附件导航；[../Todo+Spec-流程问答工作台.md](../Todo+Spec-流程问答工作台.md) 标注为 Session MVP 详细规格。
 
 ## 5. Later
 

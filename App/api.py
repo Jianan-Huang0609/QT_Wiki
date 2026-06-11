@@ -25,6 +25,7 @@ from App.schemas import (
 )
 from Tool.document_processor import process_document
 from Tool.contracts.canonical import load_canonical_document
+from Tool.chunking.section_chunks import build_section_chunks
 from Tool.pipelines.common import PARSED_DIR
 from Tool.workflows.document_parse import build_parse_workflow_summary
 from wiki.builders.bootstrap import PAGE_BLUEPRINTS, bootstrap_pages
@@ -196,6 +197,7 @@ def document_parse_summary(document_id: str) -> dict[str, Any]:
         "structure_quality": workflow.get("structure_quality", {}),
         "eval_summary": workflow.get("eval_summary", {}),
         "review_items": workflow.get("review_items", []),
+        "visual_review_items": workflow.get("visual_review_items", []),
         "parse_workflow": workflow,
     }
 
@@ -219,6 +221,35 @@ def document_sections(document_id: str) -> dict[str, Any]:
             }
             for section in canonical.sections
         ],
+    }
+
+
+@app.get("/api/documents/{document_id}/chunks")
+def document_chunks(document_id: str, max_chars: int = 1800) -> dict[str, Any]:
+    canonical = _load_parsed_document(document_id)
+    chunks = build_section_chunks(canonical, max_chars=max(200, min(max_chars, 8000)))
+    return {
+        "document_id": canonical.document.document_id,
+        "chunk_count": len(chunks),
+        "items": [chunk.to_dict() for chunk in chunks],
+    }
+
+
+@app.get("/api/session/handoff/{document_id}")
+def session_handoff(document_id: str, max_chars: int = 1800, preview_limit: int = 12) -> dict[str, Any]:
+    canonical = _load_parsed_document(document_id)
+    workflow = _parse_workflow_payload(canonical)
+    chunks = build_section_chunks(canonical, max_chars=max(200, min(max_chars, 8000)))
+    preview_chunks = chunks[: max(1, min(preview_limit, 50))]
+    return {
+        "schema_version": "session-handoff-v0.1",
+        "document_id": canonical.document.document_id,
+        "source": _handoff_source(canonical, workflow, chunks),
+        "tree": _handoff_tree(canonical, chunks, workflow),
+        "graph": _handoff_graph(canonical, chunks),
+        "retrieval": _handoff_retrieval(chunks, preview_chunks),
+        "chat": _handoff_chat_contract(canonical),
+        "quality": _handoff_quality(workflow),
     }
 
 
@@ -445,6 +476,146 @@ def _parse_workflow_payload(canonical: Any) -> dict[str, Any]:
         return workflow
     parser_name = str(canonical.document.metadata.get("parser_name", f"{canonical.document.source_type}_parser"))
     return build_parse_workflow_summary(canonical, parser_name=parser_name)
+
+
+def _handoff_source(canonical: Any, workflow: dict[str, Any], chunks: list[Any]) -> dict[str, Any]:
+    return {
+        "document_id": canonical.document.document_id,
+        "title": canonical.document.title,
+        "file_name": canonical.document.file_name,
+        "source_type": canonical.document.source_type,
+        "doc_type": canonical.document.doc_type,
+        "parse_status": workflow.get("parse_status", canonical.parse_status),
+        "section_count": len(canonical.sections),
+        "fragment_count": len(canonical.fragments),
+        "table_count": len(canonical.tables),
+        "figure_count": len(canonical.figures),
+        "chunk_count": len(chunks),
+    }
+
+
+def _handoff_tree(canonical: Any, chunks: list[Any], workflow: dict[str, Any]) -> dict[str, Any]:
+    fragment_counts: dict[str | None, int] = {}
+    chunk_counts: dict[str | None, int] = {}
+    for fragment in canonical.fragments:
+        fragment_counts[fragment.section_id] = fragment_counts.get(fragment.section_id, 0) + 1
+    for chunk in chunks:
+        chunk_counts[chunk.section_id] = chunk_counts.get(chunk.section_id, 0) + 1
+    root_id = f"doc-{canonical.document.document_id}"
+    items = [
+        {
+            "node_id": root_id,
+            "node_type": "document",
+            "parent_id": None,
+            "document_id": canonical.document.document_id,
+            "title": canonical.document.title,
+            "parse_status": workflow.get("parse_status", canonical.parse_status),
+            "fragment_count": len(canonical.fragments),
+            "chunk_count": len(chunks),
+        }
+    ]
+    for section in canonical.sections:
+        items.append(
+            {
+                "node_id": f"section-{section.section_id}",
+                "node_type": "section",
+                "parent_id": f"section-{section.parent_id}" if section.parent_id else root_id,
+                "document_id": canonical.document.document_id,
+                "section_id": section.section_id,
+                "title": section.title,
+                "level": section.level,
+                "page_range": list(section.page_range),
+                "fragment_count": fragment_counts.get(section.section_id, 0),
+                "chunk_count": chunk_counts.get(section.section_id, 0),
+                "anchor_label": _section_anchor_label(section.page_range),
+            }
+        )
+    return {"root_id": root_id, "items": items}
+
+
+def _handoff_graph(canonical: Any, chunks: list[Any]) -> dict[str, Any]:
+    nodes: list[dict[str, Any]] = [
+        {"node_id": f"doc-{canonical.document.document_id}", "node_type": "document", "label": canonical.document.title}
+    ]
+    edges: list[dict[str, Any]] = []
+    seen_nodes = {nodes[0]["node_id"]}
+    for section in canonical.sections:
+        section_node_id = f"section-{section.section_id}"
+        if section_node_id not in seen_nodes:
+            nodes.append({"node_id": section_node_id, "node_type": "section", "label": section.title, "section_id": section.section_id})
+            seen_nodes.add(section_node_id)
+        parent_id = f"section-{section.parent_id}" if section.parent_id else f"doc-{canonical.document.document_id}"
+        edges.append(_graph_edge(parent_id, section_node_id, "contains"))
+    for chunk in chunks:
+        chunk_node_id = f"chunk-{chunk.chunk_id}"
+        if chunk_node_id not in seen_nodes:
+            nodes.append({"node_id": chunk_node_id, "node_type": "chunk", "label": chunk.section_title or chunk.chunk_type, "chunk_id": chunk.chunk_id})
+            seen_nodes.add(chunk_node_id)
+        section_node_id = f"section-{chunk.section_id}" if chunk.section_id else f"doc-{canonical.document.document_id}"
+        edges.append(_graph_edge(section_node_id, chunk_node_id, "contains"))
+        for signal in chunk.signals[:8]:
+            signal_node_id = f"signal-{signal}"
+            if signal_node_id not in seen_nodes:
+                nodes.append({"node_id": signal_node_id, "node_type": "signal", "label": signal})
+                seen_nodes.add(signal_node_id)
+            edges.append(_graph_edge(chunk_node_id, signal_node_id, "mentions"))
+    return {"nodes": nodes, "edges": edges}
+
+
+def _handoff_retrieval(chunks: list[Any], preview_chunks: list[Any]) -> dict[str, Any]:
+    return {
+        "available_retrievers": ["rule_section", "full_text", "vector", "hybrid"],
+        "default_retriever": "hybrid",
+        "chunk_count": len(chunks),
+        "preview_chunks": [chunk.to_dict() for chunk in preview_chunks],
+    }
+
+
+def _handoff_chat_contract(canonical: Any) -> dict[str, Any]:
+    source_scope = {"mode": "selected_docs", "document_ids": [canonical.document.document_id]}
+    return {
+        "source_scope": source_scope,
+        "request_contract": {
+            "question": "string",
+            "source_scope": source_scope,
+            "retriever": "hybrid",
+            "top_k": 8,
+        },
+        "answer_contract": {
+            "requires_citations": True,
+            "evidence_package": "AnswerEvidencePackage",
+            "citation_fields": ["document_id", "section_id", "anchor_label", "quote"],
+            "quality_gates": ["missing_citation", "unsupported_claim", "missing_evidence"],
+        },
+    }
+
+
+def _handoff_quality(workflow: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "parse_status": workflow.get("parse_status", "unknown"),
+        "structure_quality": workflow.get("structure_quality", {}),
+        "eval_summary": workflow.get("eval_summary", {}),
+        "review_items": workflow.get("review_items", []),
+        "visual_review_items": workflow.get("visual_review_items", []),
+        "parser_fusion": workflow.get("parser_fusion", {}),
+    }
+
+
+def _section_anchor_label(page_range: list[int]) -> str:
+    if not page_range:
+        return ""
+    if len(page_range) == 1:
+        return f"p.{page_range[0]}"
+    return f"p.{page_range[0]}-{page_range[-1]}"
+
+
+def _graph_edge(source_id: str, target_id: str, relation_type: str) -> dict[str, Any]:
+    return {
+        "edge_id": f"{relation_type}-{source_id}-{target_id}",
+        "relation_type": relation_type,
+        "source": source_id,
+        "target": target_id,
+    }
 
 
 def _load_recent_runs(limit: int = 12) -> list[dict[str, Any]]:

@@ -5,6 +5,8 @@ from typing import Any
 
 from Tool.contracts.canonical import CanonicalDocument, FigureData, Fragment, TableData
 from Tool.evals.parser_quality import evaluate_parser_quality
+from Tool.parsers.fusion import default_parser_fusion_metadata
+from Tool.visual_review import build_visual_review_items
 
 PARSER_VERSION = "multi-input-v0.1"
 EVAL_STATUS_KEYS = ("pass", "warn", "fail", "na")
@@ -17,17 +19,22 @@ def apply_parse_workflow_contract(
     parser_version: str = PARSER_VERSION,
     trace: list[str] | None = None,
 ) -> CanonicalDocument:
+    parser_fusion = canonical.document.metadata.get("parser_fusion")
+    if not isinstance(parser_fusion, dict):
+        parser_fusion = default_parser_fusion_metadata(canonical, parser_name=parser_name)
     summary = build_parse_workflow_summary(
         canonical,
         parser_name=parser_name,
         parser_version=parser_version,
         trace=trace,
+        parser_fusion=parser_fusion,
     )
     canonical.parse_status = summary["parse_status"]
     canonical.document.metadata.update(
         {
             "parser_name": parser_name,
             "parser_version": parser_version,
+            "parser_fusion": parser_fusion,
             "structure_quality": summary["structure_quality"],
             "eval_summary": summary["eval_summary"],
             "review_items": summary["review_items"],
@@ -43,10 +50,12 @@ def build_parse_workflow_summary(
     parser_name: str,
     parser_version: str = PARSER_VERSION,
     trace: list[str] | None = None,
+    parser_fusion: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     counts = _counts(canonical)
     structure_quality = _structure_quality(canonical)
     quality_report = evaluate_parser_quality(canonical)
+    visual_review_items = build_visual_review_items(canonical)
     structure_quality.update(quality_report["metrics"])
     findings = [
         *_gate1_findings(canonical, parser_name=parser_name, structure_quality=structure_quality),
@@ -66,6 +75,8 @@ def build_parse_workflow_summary(
         "structure_quality": structure_quality,
         "eval_summary": eval_summary,
         "review_items": review_items,
+        "visual_review_items": visual_review_items,
+        "parser_fusion": parser_fusion or default_parser_fusion_metadata(canonical, parser_name=parser_name),
         "trace": _trace(parser_name, trace),
     }
 

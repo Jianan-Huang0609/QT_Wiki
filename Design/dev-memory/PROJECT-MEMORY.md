@@ -15,11 +15,17 @@
 - Evals 借鉴 BUs_CER / LEFA_v6 的最小质量门：抓取完整性、真源返回、章节正确性。后续实现按 Gate 推进，关键节点需要用户核查后再进入下一层。
 - 2026-06-10 已实现 Gate 1 Parser Workflow Contract 和 Gate 2 Markdown parser MVP：canonical metadata 写入 `parse_workflow`、`structure_quality`、`eval_summary`、`review_items`，upload 和 parse-summary API 可返回这些字段。
 - 2026-06-10 Evals 范围扩展为静态开发质量门 + 动态内容质量门。Parser Quality Eval MVP 已覆盖抓取缺口、章节漂移、章节树错误、噪音标题、复杂表格/图片风险、LLM 输出缺证据。
+- 2026-06-10 已实现 Gate 3 PDF/DOCX Chapterization MVP：共享 heading detector 覆盖 R 阶段、中文章/条、数字编号、compact 编号、字母子标题和 DOCX Heading 样式；真实 CT / MI / XP PEP 自动 smoke 已补强 P2-03 文档控制/目录噪音和 P2-01 孤立深层章节检查，人工核查仍是下一步。
+- 2026-06-10 已实现 Gate 4/5 Section Chunk + Retrieval Eval MVP：section chunks、source-scope retrieval、retrieval eval、chunks API 和 visual review queue 已进入代码；CT/MI/XP smoke 当前为 146 / 93 / 163 chunks，最近完整验证 `109 passed`。
+- 2026-06-10 Gate 6 已收敛为下一阶段：先做 deterministic QuestionIntent、企业关键词归一和 AnswerEvidencePackage，再接 adaptive prompt builder、answer eval 和 Session Query API。
+- 2026-06-10 已实现 Gate 6 Answer Foundation：`Tool/workflows/answer.py` 提供 deterministic QuestionIntent、企业关键词归一和 AnswerEvidencePackage；History/template change 与缺 source_refs hit 不作为 primary evidence。
+- Design 目录当前采用“一主多附件”：计划、方案、TODO 都以 [../TODO.md](../TODO.md) Phase 0-5 为准；外部 Plan / Review / Notes 文档只作为证据附件或历史背景。
 - GitHub Pages 作为静态前端、静态索引和导出产物托管目标；上传和 AI 解析先由本地 FastAPI、CLI/build script 或后续轻量服务生成 JSON/Markdown。
 
 ## Current Source Of Truth
 
 - PRD: [../PRD-流程问答工作台.md](../PRD-流程问答工作台.md)
+- Design master stage plan: [../TODO.md](../TODO.md)
 - Todo + Spec: [../Todo+Spec-流程问答工作台.md](../Todo+Spec-流程问答工作台.md)
 - 功能文档入口: [../../QT-Wiki-功能文档.md](../../QT-Wiki-功能文档.md)
 - 根变更记录: [../../CHANGELOG.md](../../CHANGELOG.md)
@@ -34,6 +40,7 @@
 ## Review Rules
 
 - 当前轻量开发框架采用 `repo-dev-harness`：TODO 用 checkbox-first，dev memory 只记录稳定事实，changelog 只记录已确认动作和验证证据。
+- Design 阶段计划以 [../TODO.md](../TODO.md) 为唯一入口；新计划优先写回对应 Phase，长背景才新增附件。
 - 修改文档后同步更新 [CHANGELOG.md](../../CHANGELOG.md)。
 - 长线开发状态写入 [SESSION-WIP.md](SESSION-WIP.md)。
 - 用户原始要求和待审任务写入 [TODO.md](TODO.md)。

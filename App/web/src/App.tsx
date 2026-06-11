@@ -83,9 +83,11 @@ interface ChatHistoryEntry {
 }
 
 type DrawerKey = "context" | "references" | "outputs" | "admin";
+type SourcePanelMode = "sources" | "tree" | "graph";
 
 export default function App() {
   const [activeView, setActiveView] = useState<ViewKey>("dashboard");
+  const [sourcePanelMode, setSourcePanelMode] = useState<SourcePanelMode>("sources");
   const [activeDrawer, setActiveDrawer] = useState<DrawerKey>("context");
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
@@ -465,24 +467,24 @@ export default function App() {
   }
 
   return (
-    <div className="app process-chat-app">
-      <header className="process-header">
-        <div className="process-brand">
+    <div className="app session-workspace-app">
+      <header className="session-topbar">
+        <div className="session-brand">
           <div className="brand-mark">
             <DatabaseZap size={22} />
           </div>
           <div>
             <p className="eyebrow">QT Wiki vNext</p>
-            <h1>PEP 流程问答</h1>
+            <h1>PEP Knowledge Session</h1>
           </div>
         </div>
-        <div className="process-status-strip" aria-label="当前上下文">
-          <span>文档 {currentDocumentId || selectedReviewPackage?.document_id || "未选择"}</span>
-          <span>BU 待识别</span>
-          <span>阶段 R2</span>
-          <span>角色 PO</span>
+        <div className="session-scope-strip" aria-label="当前 session scope">
+          <span>Session PEP-R2</span>
+          <span>{currentDocumentId || selectedReviewPackage?.document_id || "All Sources"}</span>
+          <span>{indexStatus?.sources ?? 0} sources indexed</span>
+          <span>{useLlm ? "LLM ready" : "Rule mode"}</span>
         </div>
-        <div className="process-header-actions">
+        <div className="session-actions">
           <label className="model-select">
             <span>模型</span>
             <select value={modelProfile} onChange={(event) => setModelProfile(event.target.value)}>
@@ -503,14 +505,27 @@ export default function App() {
         </div>
       </header>
 
-      <main className="process-shell">
-        <section className="process-chat-column">
-          <div className="process-chat-intro">
+      <main className="session-grid">
+        <SessionSourcePanel
+          mode={sourcePanelMode}
+          setMode={setSourcePanelMode}
+          indexStatus={indexStatus}
+          reviewPackages={reviewPackages}
+          pages={pages}
+          ingestRuns={ingestRuns}
+          currentDocumentId={currentDocumentId}
+          selectedReviewPackage={selectedReviewPackage}
+          selectedPage={selectedPage}
+          onSelectRun={handleSelectRun}
+        />
+
+        <section className="session-chat-stage" aria-label="Session chat">
+          <div className="session-chat-titlebar">
             <div>
-              <p className="eyebrow">Process Chat</p>
+              <p className="eyebrow">Session Chat</p>
               <h2>问 PEP 流程、R2 阶段动作、PO 交付物和引用来源</h2>
             </div>
-            <div className="process-metrics">
+            <div className="session-metrics">
               <Metric label="索引来源" value={String(indexStatus?.sources ?? 0)} />
               <Metric label="已解析" value={String(reviewPackages.length)} />
               <Metric label="低置信度" value={String(pendingPackageCount)} />
@@ -532,7 +547,7 @@ export default function App() {
           />
         </section>
 
-        <ProcessDrawer
+        <SessionRightPanel
           activeDrawer={activeDrawer}
           setActiveDrawer={setActiveDrawer}
           activeChatResult={activeChatResult}
@@ -559,6 +574,382 @@ export default function App() {
         {toast}
       </div>
     </div>
+  );
+}
+
+function SessionSourcePanel({
+  mode,
+  setMode,
+  indexStatus,
+  reviewPackages,
+  pages,
+  ingestRuns,
+  currentDocumentId,
+  selectedReviewPackage,
+  selectedPage,
+  onSelectRun,
+}: {
+  mode: SourcePanelMode;
+  setMode: (mode: SourcePanelMode) => void;
+  indexStatus: IndexStatus | null;
+  reviewPackages: ReviewPackage[];
+  pages: WikiPage[];
+  ingestRuns: IngestRunSummary[];
+  currentDocumentId: string;
+  selectedReviewPackage?: ReviewPackage;
+  selectedPage?: WikiPage;
+  onSelectRun: (run: IngestRunSummary) => void;
+}) {
+  const sourceTabs: { key: SourcePanelMode; label: string; icon: typeof FileSearch }[] = [
+    { key: "sources", label: "Sources", icon: FileInput },
+    { key: "tree", label: "Tree", icon: FileSearch },
+    { key: "graph", label: "Graph", icon: GitBranch },
+  ];
+  const visiblePackages = reviewPackages.slice(0, 6);
+  const graphNodes = [
+    selectedReviewPackage?.title || selectedPage?.title || "PEP Session",
+    "R2",
+    "PO",
+    "QMP",
+    "Reference",
+  ];
+
+  return (
+    <aside className="session-source-panel" aria-label="Session sources">
+      <div className="panel-topline">
+        <div>
+          <p className="eyebrow">Knowledge Base</p>
+          <h2>Sources</h2>
+        </div>
+        <span className="count-pill">{indexStatus?.sources ?? 0}</span>
+      </div>
+      <div className="source-panel-tabs" role="tablist" aria-label="Source panel views">
+        {sourceTabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              className={mode === tab.key ? "active" : ""}
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={mode === tab.key}
+              onClick={() => setMode(tab.key)}
+            >
+              <Icon size={15} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {mode === "sources" && (
+        <div className="source-panel-body">
+          <section className="source-scope-card">
+            <span>Source scope</span>
+            <strong>{currentDocumentId || selectedReviewPackage?.document_id || "All Sources"}</strong>
+            <small>{reviewPackages.length} parsed documents · {pages.length} wiki pages</small>
+          </section>
+          <div className="source-list">
+            {visiblePackages.length ? (
+              visiblePackages.map((item) => (
+                <article className="source-doc-card" key={item.package_id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{item.document_id}</span>
+                  </div>
+                  <StatusBadge status={item.status} />
+                </article>
+              ))
+            ) : (
+              <EmptyState title="暂无 Sources" text="上传或解析 PEP 后，这里会显示 session 可用来源。" />
+            )}
+          </div>
+          <section className="source-panel-section">
+            <div className="section-title compact">
+              <div className="section-title-label">
+                <History size={16} />
+                <h3>最近运行</h3>
+              </div>
+            </div>
+            <div className="drawer-run-list compact-run-list">
+              {ingestRuns.slice(0, 3).map((run) => (
+                <button className="run-card" key={run.run_id} type="button" onClick={() => onSelectRun(run)}>
+                  <strong>{run.file_name || run.document_id}</strong>
+                  <span>{formatRunTimestamp(run.created_at)}</span>
+                  <span>{run.use_llm ? "LLM" : "Rule"} · {run.proposals_created} proposals</span>
+                </button>
+              ))}
+              {!ingestRuns.length ? <EmptyState title="暂无运行" text="还没有本地解析运行。" /> : null}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {mode === "tree" && (
+        <div className="source-panel-body">
+          <section className="source-tree">
+            <div className="tree-node root">
+              <Archive size={16} />
+              <strong>{selectedReviewPackage?.title || selectedPage?.title || "PEP Knowledge Base"}</strong>
+            </div>
+            {["0 History / 修改历史", "1 Purpose and scope", "5 Process & Requirement", "5.3 R2 Responsibilities", "7.16 Regulatory approval plan"].map((item, index) => (
+              <div className={`tree-node level-${Math.min(index, 3)}`} key={item}>
+                <span />
+                <strong>{item}</strong>
+              </div>
+            ))}
+          </section>
+        </div>
+      )}
+
+      {mode === "graph" && (
+        <div className="source-panel-body">
+          <section className="source-graph" aria-label="Source relationship graph preview">
+            {graphNodes.map((node, index) => (
+              <div className={`graph-node node-${index}`} key={node}>
+                {node}
+              </div>
+            ))}
+          </section>
+          <p className="graph-caption">当前为本地关系预览，后续接 section graph / BU diff 后会从真实 evidence package 生成。</p>
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function SessionRightPanel({
+  activeDrawer,
+  setActiveDrawer,
+  activeChatResult,
+  selectedCitation,
+  selectedReviewPackage,
+  selectedPage,
+  selectedCitationId,
+  currentDocumentId,
+  ingestRuns,
+  issues,
+  indexStatus,
+  activeView,
+  workflowItems,
+  setActiveView,
+  onSelectCitation,
+  onSelectRun,
+  onRebuildIndex,
+  busy,
+}: {
+  activeDrawer: DrawerKey;
+  setActiveDrawer: (value: DrawerKey) => void;
+  activeChatResult: QueryResult | null;
+  selectedCitation?: Citation;
+  selectedReviewPackage?: ReviewPackage;
+  selectedPage?: WikiPage;
+  selectedCitationId: string;
+  currentDocumentId: string;
+  ingestRuns: IngestRunSummary[];
+  issues: LintIssue[];
+  indexStatus: IndexStatus | null;
+  activeView: ViewKey;
+  workflowItems: NavItem[];
+  setActiveView: (value: ViewKey) => void;
+  onSelectCitation: (id: string) => void;
+  onSelectRun: (run: IngestRunSummary) => void;
+  onRebuildIndex: () => void;
+  busy: string;
+}) {
+  const refs = selectedReviewPackage?.source_refs?.length ? selectedReviewPackage.source_refs : selectedPage?.source_refs ?? [];
+  const trace = activeChatResult?.trace?.length ? activeChatResult.trace : selectedReviewPackage?.tool_trace ?? [];
+  const tabs: { key: DrawerKey; label: string }[] = [
+    { key: "context", label: "Note" },
+    { key: "references", label: "Reference" },
+    { key: "outputs", label: "Workflow" },
+    { key: "admin", label: "Admin" },
+  ];
+
+  return (
+    <aside className="session-right-panel" aria-label="Session note and workflow studio">
+      <div className="right-panel-tabs" role="tablist" aria-label="Session right panel views">
+        {tabs.map((tab) => (
+          <button
+            className={activeDrawer === tab.key ? "active" : ""}
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={activeDrawer === tab.key}
+            onClick={() => setActiveDrawer(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeDrawer === "context" && (
+        <div className="right-panel-body">
+          <section className="session-note-card pinned-note">
+            <p className="eyebrow">Session Note</p>
+            <h2>R2 / PO 工作摘记</h2>
+            <div className="note-line">
+              <Check size={15} />
+              <span>问题意图：角色行动指导</span>
+            </div>
+            <div className="note-line">
+              <Check size={15} />
+              <span>Reference 密度：high</span>
+            </div>
+            <div className="note-line muted">
+              <MessageSquareText size={15} />
+              <span>{activeChatResult ? activeChatResult.answer.slice(0, 160) : "完成一次问答后，可把答案 pin 到这里形成 session note。"}</span>
+            </div>
+          </section>
+          <section className="session-note-card">
+            <h3>当前上下文</h3>
+            <div className="context-facts">
+              <span>文档</span>
+              <strong>{currentDocumentId || selectedReviewPackage?.document_id || "All Sources"}</strong>
+              <span>标题</span>
+              <strong>{selectedReviewPackage?.title || selectedPage?.title || "PEP 流程文档"}</strong>
+              <span>索引</span>
+              <strong>{indexStatus?.sources ?? 0} sources / {indexStatus?.pages ?? 0} pages</strong>
+            </div>
+          </section>
+          <section className="session-note-card compact-workflow-list">
+            <h3>最近上传</h3>
+            {ingestRuns.slice(0, 3).map((run) => (
+              <button className="run-card" key={run.run_id} type="button" onClick={() => onSelectRun(run)}>
+                <strong>{run.file_name || run.document_id}</strong>
+                <span>{formatRunTimestamp(run.created_at)}</span>
+              </button>
+            ))}
+            {!ingestRuns.length ? <EmptyState title="暂无上传" text="上传 PEP 后会在这里出现。" /> : null}
+          </section>
+        </div>
+      )}
+
+      {activeDrawer === "references" && (
+        <div className="right-panel-body">
+          <section className="session-note-card">
+            <p className="eyebrow">Selected Evidence</p>
+            <h2>Reference</h2>
+            {selectedCitation ? (
+              <SourceBlock
+                refItem={{
+                  document_id: selectedCitation.document_id ?? "",
+                  fragment_id: selectedCitation.fragment_id,
+                  file_name: selectedCitation.file_name,
+                  anchor_label: selectedCitation.anchor_label,
+                  quote: selectedCitation.quote,
+                }}
+              />
+            ) : refs.length ? (
+              refs.slice(0, 3).map((ref) => <SourceBlock key={`${ref.document_id}-${ref.fragment_id ?? ref.anchor_label}`} refItem={ref} />)
+            ) : (
+              <EmptyState title="暂无引用" text="提问后会显示命中的文件、章节和 quote。" />
+            )}
+          </section>
+          <section className="session-note-card citation-stack">
+            <h3>回答引用</h3>
+            {activeChatResult?.citations.length ? (
+              activeChatResult.citations.map((citation) => (
+                <button
+                  className={selectedCitationId === citation.citation_id ? "active" : ""}
+                  key={citation.citation_id}
+                  type="button"
+                  onClick={() => onSelectCitation(citation.citation_id)}
+                >
+                  <strong>{citation.page_title || citation.file_name}</strong>
+                  <span>{citation.anchor_label || citation.fragment_id || "章节待定位"}</span>
+                </button>
+              ))
+            ) : (
+              <EmptyState title="等待答案" text="完成一次问答后，这里会列出全部引用。" />
+            )}
+          </section>
+          <section className="session-note-card">
+            <h3>Trace</h3>
+            <div className="trace-list drawer-trace-list">
+              {trace.length ? trace.map((item) => <span key={item}>{item}</span>) : <span>ready</span>}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {activeDrawer === "outputs" && (
+        <div className="right-panel-body">
+          <section className="session-note-card">
+            <p className="eyebrow">Workflow Studio</p>
+            <h2>输出队列</h2>
+            <div className="workflow-action-grid">
+              <article>
+                <Archive size={18} />
+                <strong>HTML Note</strong>
+                <span>ready</span>
+              </article>
+              <article>
+                <FileSearch size={18} />
+                <strong>Reference 表</strong>
+                <span>{activeChatResult?.citations.length ?? 0} refs</span>
+              </article>
+              <article>
+                <GitBranch size={18} />
+                <strong>Mermaid</strong>
+                <span>draft</span>
+              </article>
+              <article>
+                <Activity size={18} />
+                <strong>BU Diff</strong>
+                <span>draft</span>
+              </article>
+            </div>
+          </section>
+          <section className="session-note-card">
+            <h3>当前答案预览</h3>
+            {activeChatResult ? (
+              <div className="export-preview compact-export-preview">
+                <strong>{activeChatResult.used_llm ? "LLM" : "Rule"} · {activeChatResult.confidence}</strong>
+                <p>{activeChatResult.answer.slice(0, 240)}</p>
+              </div>
+            ) : (
+              <EmptyState title="暂无答案" text="完成问答后可生成 Markdown、Reference 和流程图资产。" />
+            )}
+          </section>
+        </div>
+      )}
+
+      {activeDrawer === "admin" && (
+        <div className="right-panel-body">
+          <section className="session-note-card">
+            <p className="eyebrow">Background Console</p>
+            <h2>{titleForView(activeView)}</h2>
+            <div className="admin-nav-grid">
+              {workflowItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button className={activeView === item.key ? "active" : ""} key={item.key} type="button" onClick={() => setActiveView(item.key)}>
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+          <section className="session-note-card">
+            <button className="icon-text-button" type="button" onClick={onRebuildIndex}>
+              {busy === "index" ? <Loader2 className="spin" size={16} /> : <RefreshCw size={16} />}
+              重建索引
+            </button>
+            <div className="risk-stack chat-risk-stack">
+              {issues.slice(0, 3).map((issue) => (
+                <div className="risk-row" key={issue.issue_id}>
+                  <RiskBadge risk={issue.severity} />
+                  <span>{issue.title}</span>
+                </div>
+              ))}
+              {!issues.length ? <EmptyState title="暂无风险" text="健康扫描没有返回开放问题。" /> : null}
+            </div>
+          </section>
+        </div>
+      )}
+    </aside>
   );
 }
 

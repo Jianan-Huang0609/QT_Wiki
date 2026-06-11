@@ -10,7 +10,12 @@
 - [x] Gate 2 Markdown Parser MVP：支持 `.md` heading、paragraph/list/code/table block 和 line anchors。
 - [x] Backend B0 首版：`/agent/upload`、`/api/documents/{document_id}/parse-summary`、`/api/documents/{document_id}/sections` 返回 Gate 1 字段。
 - [x] Parser Quality Evals MVP：新增 `Tool/evals/parser_quality.py`，检查抓取缺口、章节树错误、章节漂移、噪音标题、复杂表格形状、图片 caption/anchor 风险、LLM 输出缺证据。
-- [ ] Gate 1/2 人工核查：确认状态口径、Markdown 章节树和 Reference 粒度后进入 PDF/DOCX 章节化。
+- [x] Gate 3 PDF/DOCX Chapterization MVP：共享 heading detector 已覆盖 DOCX Heading 样式、compact 编号标题、字母子标题、PDF R 阶段标题和重复页眉清理。
+- [x] Gate 3 PEP PDF smoke + 人工核查材料：自动 smoke 已跑 CT / MI / XP PEP，P2-03 已覆盖文档控制页眉和目录点线噪音，P2-01 已明示孤立深层章节；剩余章节树风险保留为 `needs_review`，等待人工确认。
+- [x] Gate 4/5 Section Chunk + Retrieval Eval MVP：新增 `Tool/chunking/section_chunks.py`、`Tool/retrieval/section_index.py`、`Tool/evals/retrieval_eval.py`，并通过 `/api/documents/{document_id}/chunks` 暴露 chunk contract。
+- [x] Visual OCR / Multimodal Review Queue MVP：新增 `Tool/visual_review.py`，figure 和复杂表格先进入 `visual_review_items`，作为 OCR / multimodal 候选而非可信事实。
+- [ ] Gate 6 Adaptive Answer Workflow + Groundedness Eval：按自适应模式设计主 Chat 回答，把 question intent、企业关键词、retrieval evidence package 和 reference 约束组合成 AnswerPackage；详见 [Gate6-Adaptive-Answer-Workflow-Plan.md](Gate6-Adaptive-Answer-Workflow-Plan.md)。
+- [ ] Gate 7 Visual OCR / Multimodal Pipeline：把 `visual_review_items` 转成 crop / OCR / multimodal 候选，并进入人工 review。
 
 ## 1. 目的
 
@@ -94,6 +99,7 @@ LLM 只产候选，不决定状态。
 | P1-01 | 抓取完整性：关键 heading / sheet / slide / markdown heading 被抓到 | parser cases、expected headings | missing_expected_items | 高价值 expected 缺失为 fail/warn | 新 BU 样本进入时核查 |
 | P1-02 | 表格/行列抓取完整性 | XLSX/DOCX/PDF table cases | table_count、row/column coverage | 关键表格缺失为 warn/fail | Excel 输入首版核查 |
 | P1-03 | 图片/图示抓取风险 | figures、captions、anchors | missing_caption_figures、missing_anchor_figures | 图示缺 caption 或 anchor 为 warn | 图片密集文档首版核查 |
+| P1-05 | Visual completeness：图像/复杂表格是否进入 OCR 或 multimodal review queue | figures、tables、visual_review_items | visual_review_count、recommended_tools | 有图像候选但未视觉分析为 warn | crop / OCR / multimodal 接入前核查 |
 | P2-01 | 章节正确：section 层级与 parent_id 合理 | section candidates、canonical sections | section_tree_errors | 目录错层、重复根节点过多为 warn/fail | 章节树 UI 前核查 |
 | P2-02 | 章节边界正确：fragment 归属不跨章节污染 | sections、fragments | orphan_fragments、cross_section_suspects | 大量 null section 或跨章节为 warn | RAG chunk 前核查 |
 | P2-03 | 噪音清理：页眉页脚、目录点线、模板残留不进入标题 | sections、fragments | noise_rate、noise_samples | 噪音标题超过阈值为 warn/fail | PDF/DOCX 批量导入前核查 |
@@ -113,6 +119,8 @@ LLM 只产候选，不决定状态。
 | A1-01 | Answer groundedness：答案每个关键事实有 citation | answer package、evidence | unsupported_claims | unsupported claim 为 fail | LLM 答案上线前核查 |
 | A1-02 | 缺口说明：证据不足时不编造 | no-answer cases | abstention correctness | 证据不足仍编造为 fail | LLM prompt 固化前核查 |
 | A1-03 | 格式合规：结论、source scope、steps、references 完整 | answer package | format_errors | 缺 Reference 为 fail | 前端渲染前核查 |
+| A1-04 | 自适应格式：输出样式匹配问题意图且不过度模板化 | question intent、answer package | shape_mismatch、over_template_signals | 主 Chat 体验僵硬为 warn | 主 Chat 接入前核查 |
+| A1-05 | 企业关键词归一：PO/R2/QMP 等术语正确映射并保留原文依据 | question intent、keyword lexicon、evidence | normalization_errors | 核心术语错配为 fail | Answer Workflow 前核查 |
 
 ## 6. Parser Workflow 功能拆分
 
@@ -188,6 +196,13 @@ LLM 只产候选，不决定状态。
 
 你需要核查：chunk 粒度是否适合 LLM 读，是否太碎或太大。
 
+当前实现：
+
+- `build_section_chunks()` 已生成 section / table / figure chunks。
+- 每个 chunk 保留 `document_id`、`section_path`、`source_refs`、`anchors`、`quote` 和 `signals`。
+- History table 被标记为 `document_history`，后续 retrieval scoring 会降权。
+- `/api/documents/{document_id}/chunks` 已返回稳定 chunk contract。
+
 ### Step P5：Session Retrieval Workflow
 
 目标：查询层按 source scope 自动选择策略。
@@ -201,6 +216,13 @@ LLM 只产候选，不决定状态。
 - 返回 `strategy_used` 和 trace。
 
 你需要核查：策略选择是否符合使用直觉。
+
+当前实现：
+
+- `retrieve_sections()` 支持 `all_sources`、`selected_docs`、`selected_sections`。
+- `RetrievalResult` 返回 `strategy_used`、`source_scope`、`evidence_coverage`、`hits` 和 trace。
+- `evaluate_retrieval_cases()` 支持 expected docs / section terms / text terms / forbidden primary section terms。
+- CT / MI / XP smoke：R2 查询已回到 R2 正文/裁剪规则，CT 7.16 regulatory approval plan 在 selected_docs scope 排第一。
 
 ## 7. 后端功能设计顺序
 
@@ -236,9 +258,27 @@ GET  /api/evals/review-items
 
 首版也可以只通过 CLI 跑 eval，再由前端读取 parse summary。
 
+当前实现：parser eval 通过 workflow metadata 返回；retrieval eval 先以 Python module / test / smoke script 方式运行。
+
 ### Backend B2：Retrieval / Query API
 
 扩展 `/chat/query` 或新增 `/api/session-query`。
+
+当前已补充：
+
+```text
+GET /api/documents/{document_id}/chunks
+```
+
+正式 query API 等 Answer Contract 固定后再接入。
+
+Gate 6 Answer Contract 当前计划：
+
+- `QuestionIntent`：问题意图、关键词、答案形态、reference 密度。
+- `EnterpriseKeywordLexicon`：R 阶段、角色、交付物、BU、章节号、alias。
+- `AnswerEvidencePackage`：retrieval hits 到可引用 evidence items。
+- `AnswerPackage`：answer_text、citations、intent、coverage、missing_evidence、eval_summary、trace。
+- Adaptive prompt builder：只消费 intent + evidence package，不直接自由检索。
 
 请求：
 
@@ -319,18 +359,19 @@ GET  /api/evals/review-items
 | Gate 2 Markdown | heading tree、line anchors、Reference 粒度 | PDF/DOCX 章节化 |
 | Gate 3 PEP PDF | PEP 章节树、R2/R3 等关键章节、页眉清理 | Section Chunk |
 | Gate 4 Excel | sheet/table/row/cell 引用是否可读 | Table-aware retrieval |
-| Gate 5 Chunk | chunk 粒度和引用完整性 | Retrieval API |
-| Gate 6 Retrieval | All Sources / Selected Docs / Direct Read 策略是否合理 | Session UI 接入 |
-| Gate 7 Answer | grounded answer、缺口说明、Reference 完整性 | Workflow Studio 输出 |
+| Gate 5 Chunk | chunk 粒度和引用完整性 | Retrieval API / Answer Contract |
+| Gate 6 Adaptive Answer | question intent、企业关键词归一、evidence package、adaptive format、Reference 完整性 | Session Query API / 主 Chat |
+| Gate 7 Visual OCR / Multimodal | crop/OCR/multimodal 候选是否有 evidence 并进入 review | Workflow Studio 输出 |
 
 ## 10. 当前推荐下一步
 
 最小实现顺序：
 
-1. 先实现 Parse Workflow Contract 和 Markdown parser。
-2. 同时实现 Parser Eval MVP：P0-01、P0-02、P1-01、P3-01。
-3. 用 Markdown 打通 section tree、anchors、eval summary 和 parse summary API。
-4. 再增强 PDF/DOCX 章节化，用三份 PEP PDF 作为 smoke cases。
-5. 通过 Gate 3 后再做 Section Chunk / Retrieval。
+1. 实现 `QuestionIntent` 规则解析 MVP，覆盖 R 阶段、角色、交付物、BU diff、reference lookup。
+2. 实现企业关键词归一 MVP，先用规则词典 + chunk signals。
+3. 把 `RetrievalResult` 固化成 `AnswerEvidencePackage`：每个事实只来自 `source_refs.quote`。
+4. 实现 adaptive prompt builder 和 AnswerPackage，但保持输出格式按 intent 自适应。
+5. 实现 Answer Groundedness Eval：unsupported claim、missing citation、evidence insufficient abstention、format over-template warning。
+6. 给 Session Query API 接 `selected_docs / all_sources / selected_sections`。
 
-这样走的好处是：先用 Markdown 这个天然章节化格式把 contract、workflow、eval、API 都跑通，再把 PDF/DOCX/XLSX 的复杂性逐步接进来。它比直接啃 PEP PDF 更稳，也更适合后续多格式知识库。
+当前底座已经从 Parser Gate 推进到 Retrieval Gate。下一步重点是 Gate 6 的 `QuestionIntent + AnswerEvidencePackage`，先把“用户问题要什么”和“证据包能证明什么”固定下来，再接 LLM 自适应生成。

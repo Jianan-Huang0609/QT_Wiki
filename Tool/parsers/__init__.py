@@ -4,17 +4,20 @@ from pathlib import Path
 
 from Tool.contracts.canonical import CanonicalDocument, DocumentMeta
 from Tool.normalizers import detect_doc_type
+from Tool.parsers.docx_fusion import build_docx_fusion_metadata, parse_docx_with_fusion
 from Tool.parsers.docx_parser import parse_docx
 from Tool.parsers.markdown_parser import parse_markdown
+from Tool.parsers.pdf_fusion import build_pdf_fusion_metadata, parse_pdf_with_fusion
 from Tool.parsers.pdf_parser import parse_pdf
 from Tool.parsers.pptx_parser import parse_pptx
 from Tool.parsers.xlsx_parser import parse_xlsx
-from Tool.workflows.document_parse import apply_parse_workflow_contract
 
 SUPPORTED_SUFFIXES = {".docx", ".pdf", ".pptx", ".xlsx", ".md"}
 
 
 def parse_document(file_path: str | Path, manifest: dict) -> CanonicalDocument:
+    from Tool.workflows.document_parse import apply_parse_workflow_contract
+
     path = Path(file_path)
     suffix = path.suffix.lower()
     parser_map = {

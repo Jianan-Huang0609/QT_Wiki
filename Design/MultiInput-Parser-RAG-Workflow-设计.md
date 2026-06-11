@@ -406,7 +406,9 @@ Session MVP 可以先扩展现有 `/chat/query`，后续再拆专用 endpoints�
 ### Step 6：Answer + Eval
 
 - 输出统一 AnswerPackage。
-- 建立 retrieval eval 和 answer eval。
+- 采用自适应主 Chat 模式：核心事实强制 reference，输出格式按 question intent 变化。
+- 新增 QuestionIntent、企业关键词归一、AnswerEvidencePackage 和 adaptive prompt builder。
+- 建立 answer eval：groundedness、citation completeness、abstention correctness、adaptive format、keyword normalization。
 - 将 eval report 写入 workflow trace。
 
 ## 9. 风险与防护

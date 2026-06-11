@@ -5,31 +5,46 @@
 | 字段 | 内容 |
 | --- | --- |
 | 文档状态 | Decisioned Draft |
-| 当前版本 | v0.3 |
-| 更新时间 | 2026-06-10 |
-| 适用范围 | QT Wiki vNext 产品收敛、PEP Knowledge Base、正式互动 Session、Session Note / Workflow Studio |
+| 当前版本 | v0.4 |
+| 更新时间 | 2026-06-11 |
+| 适用范围 | QT Wiki vNext 产品收敛、PEP Knowledge Base、正式互动 Session、Session Source Base、Session Note、NotebookLM 类开源能力参考 |
 | 主要读者 | 产品 owner、流程 owner、研发、质量/法规专家、后续 AI agent |
 
-## 0.1 v0.3 已确认决策
+## 0.1 核心决策
 
 | 决策项 | 已确认范围 |
 | --- | --- |
-| 产品形态 | 类 NotebookLM：左侧固定资料库与关联图，中间正式互动 Session，右侧 Session Note / Workflow Studio。 |
+| 产品形态 | 类 NotebookLM：左侧固定 Session Source Base，中间正式互动 Session Chat，右侧 Session Note。Workflow Studio 后移到 Note 稳定之后。 |
 | 外部工作区 | 需要 Landing Page / Knowledge Base 维护页，用于更新维护知识库、新建 session、查看历史 session、查看社区笔记。 |
 | 资料复用 | 生产环境的 Knowledge Base 是背景环境；每次新 session 复制或引用当前知识库快照作为 session source scope。 |
 | Session MVP | 本次 MVP 最小目标是正式互动 Session 工作台。外部维护页、社区笔记和完整发布流进入后续。 |
-| 左侧固定区 | 全局文档目录固定展示，并支持目录树与 Obsidian 式点线关联图切换。 |
+| 左侧固定区 | 按当前 session 展示 Sources / Tree / Graph。Tree 必须来自真实解析章节；Graph 必须来自文档内显性关系和抽取关系，不能使用装饰性静态节点。 |
 | Source 选择 | 单个 session 可选择具体文档、上传临时文档、或 All Sources 全选。 |
 | Session 隔离 | 中间 Chat 是每次新开的 session；左侧资料库稳定保留，右侧笔记跟随当前 session。 |
 | Session 上传 | 允许在单个 session 内上传文档；首版自动解析，不进入人工查验，只显示解析成功/失败的小状态标。 |
-| 右侧笔记 | 每个 session 有固定笔记位，可沉淀回答、快捷生成 HTML / 飞书 Markdown / 流程图 / Reference / BU diff。 |
+| 右侧笔记 | MVP 只保留当前 session 的固定 Note 位：草稿、pinned answers、引用摘要和 publish 状态。HTML / 飞书 Markdown / 流程图 / Reference / BU diff 进入后续 Workflow Studio。 |
 | 笔记发布 | 用户可选择把单个 session 的笔记 publish 出来，后续进入社区笔记或共享笔记。 |
 | 技术路径 | 默认章节级 RAG；All Sources 强制 RAG + rerank；小范围选中文档/章节可走 LLM 直接读局部上下文。 |
 | PDF 样本 | `PEP/` 目录已有 CT、MI、XP 三份 PEP PDF，均可抽文本，适合章节级索引和 BU 对比。 |
 
+## 0.2 v0.4 UI 打磨决策
+
+本轮基于 localhost UI skeleton 评审反馈，先修订 PRD / TODO，再进入代码实现。核心变化如下：
+
+| 方向 | v0.4 决策 | 验收口径 |
+| --- | --- | --- |
+| 左侧 Base | 左侧命名为 Session Source Base，围绕当前 session 的 source scope 展开；Sources、Tree、Graph 是同一批 sources 的三种视图。 | 切换 session 后左侧勾选、上传状态、章节树和关系图随 session scope 更新。 |
+| Sources | Sources 按 session 展示，区分 Knowledge Base sources 与 session-only uploads；支持 selected / excluded / parsed / failed / low confidence 状态。 | 用户能清楚看到当前 session 用了哪些文档，哪些是临时上传，哪些未参与本次提问。 |
+| Tree | Tree 必须来自真实 `parse-summary / sections / chunks` 数据，展示 BU -> Document -> Chapter -> Section，并保留 section anchor、页码或片段统计。 | 没有真实章节数据时显示空状态和修复入口，不渲染假章节。 |
+| Graph | Graph 表达文档中显性映射关系：章节包含、stage/role/deliverable 关联、requires / produces / responsible_for、BU differs_from、引用支撑。 | 点击节点或边时，高亮相关章节 / source / citation；无关系数据时显示关系列表或待构建状态。 |
+| 中间 Chat | 采用 GPT / NotebookLM 式消息流：上方是 conversation transcript，底部固定 composer；问题输入不放在回答上方。 | 完成提问后新消息追加到 transcript；composer 始终在底部，推荐问题只作为空会话或底部辅助。 |
+| 右侧 Note | MVP 右侧只做 Note，不放 Workflow Studio、Admin 或后台 tabs。 | 右侧始终是当前 session note，包含草稿、pinned answer、引用摘录和 publish/draft 状态。 |
+| 视觉风格 | 参考 Jianan presentation 的企业汇报感，结合 Siemens Healthineers 风格：临床洁净、深青绿主色、医疗蓝辅助、低饱和灰白底、琥珀只用于警示。 | 页面密度适合流程工作台；避免营销 hero、装饰性图形和过度渐变；控件边界、字体层级和色彩语义稳定。 |
+| 开源参考 | 参考 SurfSense / KnowNote / InsightsLM / Local-NotebookLM 的能力，不直接拷贝 UI 或代码。 | 只吸收信息架构和能力模式；GPL 项目只做灵感参考，不纳入代码依赖。 |
+
 ## 1. 产品一句话定义
 
-QT Wiki vNext 是一个面向 PEP 路径公司开发流程的 NotebookLM 式知识工作台：团队在外部 Knowledge Base 中维护 CT / MI / XP 等 PEP PDF；用户进入正式互动 Session 后选择资料范围、提问流程问题、沉淀 Session Note，并把当前 session 生成 Markdown、HTML、飞书笔记、流程图、Reference 表或 BU 差异报告。
+QT Wiki vNext 是一个面向 PEP 路径公司开发流程的 NotebookLM 式知识工作台：团队在外部 Knowledge Base 中维护 CT / MI / XP 等 PEP PDF；用户进入正式互动 Session 后选择资料范围、提问流程问题、沉淀 Session Note，并在后续把当前 session 生成 Markdown、HTML、飞书笔记、流程图、Reference 表或 BU 差异报告。
 
 ## 2. 背景与目标
 
@@ -41,7 +56,7 @@ QT Wiki vNext 是一个面向 PEP 路径公司开发流程的 NotebookLM 式知�
 2. **Session 临时研究**：每次用户的问题都是一次独立研究任务，需要新建 session、选择资料范围、保存 session 历史。
 3. **笔记与产出沉淀**：每个 session 的回答可以整理成固定笔记，并可进一步生成 HTML、飞书 Markdown、流程图、Reference 表或发布为共享笔记。
 
-因此 v0.3 的重点从“单一 Chat 页面”升级为“Knowledge Base + Session + Studio Note”的三层产品。
+因此 v0.4 的重点从“单一 Chat 页面”升级为“Knowledge Base + Session + Session Source Base + Session Note”的产品结构。
 
 ## 3. 用户与场景
 
@@ -61,7 +76,7 @@ QT Wiki vNext 是一个面向 PEP 路径公司开发流程的 NotebookLM 式知�
 | --- | --- | --- |
 | Landing Page | 功能开始页，提供新建 session、维护知识库、查看历史 session、查看社区笔记入口 | 后续实现，MVP 可用轻量入口占位 |
 | Knowledge Base | 背景知识库，维护 PEP PDF、解析结果、章节索引、关联图 | 后续强化；MVP 使用现有 PEP 样本和已解析数据 |
-| Session Workspace | 正式互动工作台，左 sources / 中 chat / 右 note studio | 本次 MVP 主体 |
+| Session Workspace | 正式互动工作台，左 Session Source Base / 中 Chat / 右 Note | 本次 MVP 主体 |
 
 ### 4.2 Session Workspace 信息架构
 
@@ -69,16 +84,16 @@ QT Wiki vNext 是一个面向 PEP 路径公司开发流程的 NotebookLM 式知�
 ┌────────────────────────────────────────────────────────────────────┐
 │ QT Wiki Notebook | Session title | Source scope | Model | New Session │
 ├──────────────────┬──────────────────────────────────┬──────────────┤
-│ Sources / Graph  │ Session Chat                     │ Studio Note  │
+│ Session Sources  │ Session Chat                     │ Session Note │
 │                  │                                  │              │
-│ [x] CT PEP       │ Current session conversation      │ Pinned facts │
-│ [x] MI PEP       │ Answer + References               │ Draft note   │
-│ [x] XP PEP       │                                  │ Workflows    │
-│                  │                                  │ - HTML note  │
-│ Upload to session│                                  │ - Feishu MD  │
-│ All Sources      │                                  │ - Mermaid    │
-│                  │                                  │ - BU Diff    │
-│ Tree | Graph     │ Input box                         │ Publish note │
+│ [x] CT PEP       │ Assistant / User transcript       │ Draft note   │
+│ [x] MI PEP       │ Answer + inline References        │ Pinned facts │
+│ [x] XP PEP       │                                  │ Citations    │
+│                  │                                  │              │
+│ Upload to session│                                  │ Publish state│
+│ All Sources      │                                  │              │
+│                  │                                  │              │
+│ Tree | Graph     │ Bottom composer                   │              │
 └──────────────────┴──────────────────────────────────┴──────────────┘
 ```
 
@@ -89,24 +104,25 @@ QT Wiki vNext 是一个面向 PEP 路径公司开发流程的 NotebookLM 式知�
 ### 5.1 MVP 必须包含
 
 1. 左侧固定 Sources 区：
-   - 展示 CT / MI / XP PEP 文档。
-   - 支持勾选具体文档。
+  - 展示 CT / MI / XP PEP 文档。
+  - 按 session 展示当前 source scope，支持勾选具体文档或章节。
    - 支持 All Sources。
-   - 支持 Tree / Graph 视觉切换。
+  - 支持 Tree / Graph 真实数据切换。
    - 支持 session 内上传临时文档，并显示解析状态小标。
 
 2. 中间 Session Chat：
    - 支持新建 session。
    - 每个 session 拥有独立聊天记录。
    - 每个 session 记录 source scope。
+    - 对话消息显示在上方 transcript，输入框固定在底部。
    - 提问时按当前 source scope 选择 RAG 或局部 LLM 直接读路径。
-   - 回答保留 Reference 映射。
+    - 回答保留 inline Reference 映射，并支持 pin 到 note。
 
-3. 右侧 Session Note / Studio：
+3. 右侧 Session Note：
    - 每个 session 有固定笔记位。
    - 支持把回答 pin 到 note。
-   - 显示快捷 workflow：HTML note、飞书 Markdown、Reference 表、Mermaid、BU diff。
    - 支持 publish note 的入口占位。
+    - 支持引用摘录和 note 草稿。
 
 4. Session 状态：
    - 显示当前 session 名称、创建时间、source scope、模型、解析状态。
@@ -120,6 +136,8 @@ QT Wiki vNext 是一个面向 PEP 路径公司开发流程的 NotebookLM 式知�
 - 人工审核章节拆分与对象抽取。
 - 完整 HTML / 飞书发布 API。
 - 图谱物理布局算法和复杂编辑能力。
+- Workflow Studio 全量入口：HTML note、飞书 Markdown、Reference 表、Mermaid、BU diff。
+- Audio / Podcast / presentation generation。
 
 ## 6. 功能需求
 
@@ -168,6 +186,7 @@ Knowledge Base 维护 PEP PDF、解析状态、章节索引和关联图。
 - 当前 session 清晰显示 source scope。
 - 上传到 session 的文档显示 `parsed` / `failed` 小状态标。
 - All Sources 查询会在回答中说明命中的文档范围。
+- source scope 变化会同步影响 Tree、Graph、retrieval request 和 chat 顶部上下文。
 
 ### FR4 左侧 Tree / Graph
 
@@ -178,14 +197,17 @@ Tree 视图：
 - BU -> Document -> Chapter -> Section。
 - 显示页码、章节标题、解析状态。
 - 支持勾选文档或章节进入当前 session。
+- Tree 数据必须来自真实 parser / section index；没有真实数据时显示空状态和下一步动作。
 
 Graph 视图：
 
 - Obsidian 式点线图。
 - 节点类型：Document、Chapter、Stage、Role、Deliverable、Template、Reference。
 - 边类型：contains、mentions、requires、produces、responsible_for、differs_from。
+- 节点和边需要绑定 `source_ref`、`section_id` 或 `citation_id`，用于和 Tree / Chat / Note 联动。
+- 首版允许用固定布局或列表式关系图，但关系必须来自真实文档信号或抽取结果。
 
-MVP 图谱可以先用静态/规则布局展示关系，不要求复杂拖拽编辑。
+MVP 图谱可以先用规则布局展示关系，不要求复杂拖拽编辑。
 
 ### FR5 中间 Session Chat
 
@@ -200,6 +222,14 @@ Session Chat 是正式互动区，占页面主要宽度。
 - 回答包含 Reference 映射。
 - 支持把回答 pin 到右侧 note。
 
+布局规则：
+
+- 上方是 conversation transcript，按时间展示 user / assistant message。
+- 底部是 sticky composer，包含输入框、发送、LLM 开关和当前 source scope 摘要。
+- 推荐问题在空会话时展示在 transcript 起始区域；有消息后收敛为底部 quick prompt。
+- 回答操作包含 copy、pin to note、show citations、regenerate 占位。
+- citation 点击后高亮右侧 note 引用摘录，并联动左侧 Tree / Graph 的 source 节点。
+
 回答结构建议：
 
 ```text
@@ -212,23 +242,43 @@ Reference
 可继续追问
 ```
 
-### FR6 右侧 Session Note / Workflow Studio
+### FR6 右侧 Session Note
 
-右侧是当前 session 的固定笔记位，而不是全局设置。
+右侧是当前 session 的固定笔记位，而不是全局设置，也不是后台抽屉。
 
 能力包括：
 
 - Session Note 草稿。
 - Pin answer to note。
-- Workflow shortcuts：
-  - 生成 HTML note。
-  - 生成飞书 Markdown。
-  - 生成 Reference 表。
-  - 生成 Mermaid 流程图。
-  - 生成 BU diff。
 - Publish note 入口。
+- Citation excerpts：展示被 pin 的回答引用和 source 摘录。
+- Note outline：允许后续把回答整理成流程说明、责任清单、Reference 列表。
 
-首版策略：先做 UI 和本地草稿状态；导出 API 后续接入。
+首版策略：先做 UI 和本地草稿状态；Workflow Studio 与导出 API 后续接入。
+
+### FR8 企业视觉系统
+
+v0.4 UI 需要从“通用 AI 工具”收敛为公司流程知识工作台。
+
+视觉原则：
+
+- 风格关键词：clinical、precise、operational、presentation-ready。
+- 主色：深青绿；辅助：医疗蓝；背景：低饱和灰白；警示：琥珀；高风险：低饱和红。
+- 字体层级：标题克制，正文清晰，面板标题不使用 hero 级字号。
+- 页面密度：适合反复操作和扫描，不做营销型 hero、不做大卡片堆叠。
+- 交互状态：selected / parsed / failed / low confidence / cited / pinned 使用稳定色彩语义。
+- 公司汇报感：对齐 Jianan presentation 的干净边界、表格化信息、轻量强调色和可截图汇报的排版。
+
+### FR9 开源 NotebookLM 类能力参考
+
+本项目不直接复制开源项目代码，而是吸收高价值产品模式。
+
+| 项目 | 可借鉴能力 | 融合方式 |
+| --- | --- | --- |
+| SurfSense | Search Space、hybrid search、Perplexity-style cited answers、connectors、report/podcast/presentation outputs | 借鉴 search space / cited answer / output studio 的信息架构；connectors 与 outputs 放入后续。 |
+| KnowNote | 三栏 Knowledge Library / AI Q&A / Note Output、local-first、SQLite/vector search、mind map | 借鉴三栏职责边界和 Note Output；GPL 代码只作灵感，不纳入依赖。 |
+| InsightsLM | self-hosted document chat、verifiable citations、Supabase + workflow automation、podcast generation | 借鉴 citation-first 和 workflow webhook 思路；当前 FastAPI workflow-first 架构保留。 |
+| Local-NotebookLM | PDF -> transcript/audio pipeline、多语言、多 provider、FastAPI/Gradio API | 将 audio overview / Q&A script / executive brief 纳入 Later，不进入当前 UI MVP。 |
 
 ### FR7 笔记发布与社区笔记
 

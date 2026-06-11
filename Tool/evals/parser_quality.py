@@ -4,6 +4,8 @@ import re
 from typing import Any
 
 from Tool.contracts.canonical import CanonicalDocument, Fragment, Section, TableData
+from Tool.parsers.structure import looks_like_structural_noise_heading
+from Tool.visual_review import build_visual_review_items
 
 NOISE_TITLE_RE = re.compile(
     r"^(?:\d{1,4}|\d{4}[/-]\d{1,2}[/-]\d{1,2}|目录|contents?|confidential|page\s+\d+|第?\s*\d+\s*页)$",
@@ -18,11 +20,13 @@ def evaluate_parser_quality(canonical: CanonicalDocument) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
     findings.extend(_parser_error_findings(canonical))
     findings.extend(_expected_heading_findings(canonical))
+    findings.extend(_expected_section_path_findings(canonical))
     findings.extend(_section_tree_findings(canonical.sections))
     findings.extend(_fragment_section_findings(canonical.sections, canonical.fragments))
     findings.extend(_noise_findings(canonical.sections))
     findings.extend(_table_findings(canonical.tables))
     findings.extend(_figure_findings(canonical))
+    findings.extend(_visual_review_findings(canonical))
     findings.extend(_llm_evidence_findings(canonical))
     return {"findings": findings, "metrics": _quality_metrics(canonical, findings)}
 
@@ -75,6 +79,96 @@ def _expected_headings(metadata: dict[str, Any]) -> list[str]:
     return []
 
 
+def _expected_section_path_findings(canonical: CanonicalDocument) -> list[dict[str, Any]]:
+    expected_paths = _expected_section_paths(canonical.document.metadata)
+    if not expected_paths:
+        return []
+
+    actual_paths = _actual_section_paths(canonical.sections, canonical.fragments)
+    missing = [path for path in expected_paths if not any(_path_matches(actual_path, path) for actual_path in actual_paths)]
+    if not missing:
+        return []
+
+    return [
+        _finding(
+            "P1-04",
+            "warn",
+            "expected section paths were not captured",
+            reference="REF-STRUCTURE",
+            details={"missing_expected_section_paths": missing},
+        )
+    ]
+
+
+def _expected_section_paths(metadata: dict[str, Any]) -> list[list[str]]:
+    raw = metadata.get("expected_section_paths")
+    if raw is None:
+        raw = metadata.get("quality_expectations", {}).get("expected_section_paths", [])
+    return [_normalize_expected_path(item) for item in _as_items(raw) if _normalize_expected_path(item)]
+
+
+def _normalize_expected_path(item: Any) -> list[str]:
+    if isinstance(item, str):
+        delimiter = ">" if ">" in item else "|" if "|" in item else None
+        pieces = item.split(delimiter) if delimiter else [item]
+        return [piece.strip() for piece in pieces if piece.strip()]
+    if isinstance(item, (list, tuple)):
+        return [str(piece).strip() for piece in item if str(piece).strip()]
+    return []
+
+
+def _actual_section_paths(sections: list[Section], fragments: list[Fragment]) -> list[list[str]]:
+    section_by_id = {section.section_id: section for section in sections}
+    paths: list[list[str]] = []
+    for section in sections:
+        path = _section_path(section, section_by_id)
+        if path:
+            paths.append(path)
+    for fragment in fragments:
+        heading_path = fragment.anchors.get("heading_path")
+        if isinstance(heading_path, list):
+            path = [str(item).strip() for item in heading_path if str(item).strip()]
+            if path:
+                paths.append(path)
+    return paths
+
+
+def _section_path(section: Section, section_by_id: dict[str, Section]) -> list[str]:
+    path = [section.title]
+    current = section
+    seen = {section.section_id}
+    while current.parent_id:
+        parent = section_by_id.get(current.parent_id)
+        if parent is None or parent.section_id in seen:
+            break
+        path.append(parent.title)
+        seen.add(parent.section_id)
+        current = parent
+    return list(reversed(path))
+
+
+def _path_matches(actual_path: list[str], expected_path: list[str]) -> bool:
+    if not actual_path or not expected_path or len(expected_path) > len(actual_path):
+        return False
+    for start in range(0, len(actual_path) - len(expected_path) + 1):
+        candidate = actual_path[start:start + len(expected_path)]
+        if all(_title_matches(actual, expected) for actual, expected in zip(candidate, expected_path)):
+            return True
+    return False
+
+
+def _title_matches(actual: str, expected: str) -> bool:
+    actual_norm = _normalize_title(actual)
+    expected_norm = _normalize_title(expected)
+    if not actual_norm or not expected_norm:
+        return False
+    return actual_norm == expected_norm or expected_norm in actual_norm or actual_norm in expected_norm
+
+
+def _normalize_title(title: str) -> str:
+    return re.sub(r"\s+", " ", str(title).strip()).casefold()
+
+
 def _section_tree_findings(sections: list[Section]) -> list[dict[str, Any]]:
     if not sections:
         return []
@@ -97,8 +191,11 @@ def _section_tree_findings(sections: list[Section]) -> list[dict[str, Any]]:
     missing_parents: list[str] = []
     late_parents: list[str] = []
     level_jumps: list[str] = []
+    rootless_child_sections: list[str] = []
     previous_level = sections[0].level
     for section in sections:
+        if section.level > 1 and not section.parent_id:
+            rootless_child_sections.append(section.section_id)
         if section.parent_id and section.parent_id not in section_by_id:
             missing_parents.append(section.section_id)
         if section.parent_id and section.parent_id not in seen:
@@ -121,14 +218,17 @@ def _section_tree_findings(sections: list[Section]) -> list[dict[str, Any]]:
                 details={"missing_parent_sections": missing_parents, "late_parent_sections": late_parents},
             )
         )
-    if level_jumps:
+    if level_jumps or rootless_child_sections:
         findings.append(
             _finding(
                 "P2-01",
                 "warn",
                 "section levels look inconsistent",
                 reference="REF-STRUCTURE",
-                details={"level_jump_sections": sorted(set(level_jumps))},
+                details={
+                    "level_jump_sections": sorted(set(level_jumps)),
+                    "rootless_child_sections": sorted(set(rootless_child_sections)),
+                },
             )
         )
     return findings
@@ -206,7 +306,7 @@ def _noise_findings(sections: list[Section]) -> list[dict[str, Any]]:
 
 def _looks_like_noise_title(title: str) -> bool:
     normalized = re.sub(r"\s+", " ", title.strip())
-    return bool(NOISE_TITLE_RE.match(normalized))
+    return bool(NOISE_TITLE_RE.match(normalized)) or looks_like_structural_noise_heading(normalized)
 
 
 def _table_findings(tables: list[TableData]) -> list[dict[str, Any]]:
@@ -250,6 +350,25 @@ def _figure_findings(canonical: CanonicalDocument) -> list[dict[str, Any]]:
             "figure extraction needs review for missing caption or source anchors",
             reference="REF-STRUCTURE",
             details={"missing_caption_figures": missing_caption, "missing_anchor_figures": missing_anchors},
+        )
+    ]
+
+
+def _visual_review_findings(canonical: CanonicalDocument) -> list[dict[str, Any]]:
+    visual_items = build_visual_review_items(canonical)
+    if not visual_items:
+        return []
+    return [
+        _finding(
+            "P1-05",
+            "warn",
+            "visual OCR or multimodal review candidates need verification before trusted retrieval",
+            reference="REF-HITL",
+            details={
+                "visual_review_count": len(visual_items),
+                "source_ids": [item["source_id"] for item in visual_items[:20]],
+                "recommended_tools": sorted({item["recommended_tool"] for item in visual_items}),
+            },
         )
     ]
 

@@ -5,8 +5,15 @@ from pathlib import Path
 
 import pypdf
 
-from Tool.contracts.canonical import CanonicalDocument, DocumentMeta, Fragment, Section
+from Tool.contracts.canonical import CanonicalDocument, DocumentMeta, FigureData, Fragment, Section, TableData
 from Tool.normalizers import chunk_lines, detect_doc_type, extract_terms, normalize_text
+from Tool.parsers.structure import (
+    DetectedHeading,
+    detect_heading,
+    looks_like_document_control_line,
+    looks_like_structural_noise_heading,
+    looks_like_toc_dot_leader_line,
+)
 
 SECTION_RE = re.compile(r"^第[一二三四五六七八九十百零〇\d]+章")
 ARTICLE_RE = re.compile(r"^第[一二三四五六七八九十百零〇\d]+条")
@@ -47,6 +54,13 @@ THEMATIC_TITLE_MARKERS = (
     "体系",
     "规范",
 )
+HISTORY_TABLE_HEADER_RE = re.compile(r"^Nr\.\s+Page\s+Version\s+Change description\s+CR No\.?$", re.IGNORECASE)
+HISTORY_TABLE_ROW_RE = re.compile(r"^(\d+)\s+(All|\d+(?:-\d+)?)\s+(\d{2})\s+(.+)$", re.IGNORECASE)
+HISTORY_CONTINUATION_ROW_RE = re.compile(r"^\d+[.)]\s+(Chapter|Appendix)\b", re.IGNORECASE)
+POST_HISTORY_HEADING_RE = re.compile(r"^\d+\s+(Purpose|Reference document|Abbreviations|Procedure|Process|Document)\b", re.IGNORECASE)
+FIGURE_CAPTION_RE = re.compile(r"^(?:Fig\.?|Figure)\s*\d+\s*(?:/\s*图\s*\d+)?\s*[:：].+|^图\s*\d+\s*[:：].+", re.IGNORECASE)
+TOC_MARKERS = {"Content", "Contents", "Table of contents", "目录"}
+TRAILING_PAGE_NUMBER_RE = re.compile(r"^(?P<title>.+?)\s+\d{1,4}$")
 
 
 def parse_pdf(file_path: Path, manifest: dict) -> CanonicalDocument:
@@ -71,25 +85,28 @@ def parse_pdf(file_path: Path, manifest: dict) -> CanonicalDocument:
 
     sections: list[Section] = []
     fragments: list[Fragment] = []
+    tables: list[TableData] = []
+    figures: list[FigureData] = []
     current_section_id: str | None = None
-    section_index = 0
+    section_stack: list[Section] = []
     fragment_index = 0
 
+    repeated_noise = _repeated_pdf_noise_lines(extracted_pages)
     for page_number, text in extracted_pages:
-        for paragraph_index, chunk in enumerate(chunk_lines(text), start=1):
+        page_lines = [normalize_text(line) for line in text.splitlines()]
+        page_lines = [line for line in page_lines if line]
+        tables.extend(_extract_history_tables(page_lines, page_number=page_number, table_offset=len(tables)))
+        figures.extend(_extract_figure_candidates(page_lines, page_number=page_number, figure_offset=len(figures)))
+        prepared_lines = _prepare_text_page_lines(text, repeated_noise=repeated_noise, page_number=page_number)
+        for paragraph_index, chunk in enumerate(_chunk_text_page_lines(prepared_lines), start=1):
             if not chunk:
                 continue
-            if SECTION_RE.match(chunk):
-                section_index += 1
-                current_section_id = f"sec-{section_index}"
-                sections.append(
-                    Section(
-                        section_id=current_section_id,
-                        title=chunk,
-                        level=1,
-                        page_range=[page_number, page_number],
-                    )
-                )
+            heading = detect_heading(chunk)
+            if heading:
+                current_section_id = _append_section(sections, section_stack, heading, page_number)
+
+            if current_section_id:
+                _touch_section_page(sections, current_section_id, page_number)
 
             fragment_index += 1
             fragments.append(
@@ -98,7 +115,11 @@ def parse_pdf(file_path: Path, manifest: dict) -> CanonicalDocument:
                     section_id=current_section_id,
                     fragment_type="paragraph",
                     text=normalize_text(chunk),
-                    anchors={"page": page_number, "paragraph_index": paragraph_index},
+                    anchors={
+                        "page": page_number,
+                        "paragraph_index": paragraph_index,
+                        **({"heading_path": [section.title for section in section_stack]} if section_stack else {}),
+                    },
                 )
             )
 
@@ -122,14 +143,20 @@ def parse_pdf(file_path: Path, manifest: dict) -> CanonicalDocument:
         document=meta,
         sections=sections,
         fragments=fragments,
-        tables=[],
-        figures=[],
+        tables=tables,
+        figures=figures,
         terms=extract_terms([fragment.text for fragment in fragments]),
         entities=[],
         parse_status=parse_status,
         source_anchors=[
             {"fragment_id": fragment.fragment_id, "anchors": fragment.anchors}
             for fragment in fragments
+        ] + [
+            {"table_id": table.table_id, "anchors": table.anchors}
+            for table in tables
+        ] + [
+            {"figure_id": figure.figure_id, "anchors": figure.anchors}
+            for figure in figures
         ],
         errors=errors,
     )
@@ -259,6 +286,255 @@ def _prepare_slide_lines(text: str) -> list[str]:
     if lines and PAGE_NO_RE.match(lines[0]):
         lines = lines[1:]
     return [line for line in lines if not PAGE_NO_RE.match(line)]
+
+
+def _prepare_text_page_lines(text: str, *, repeated_noise: set[str], page_number: int) -> list[str]:
+    lines = [normalize_text(line) for line in text.splitlines()]
+    lines = _join_split_heading_lines(lines)
+    if _looks_like_toc_page(lines, page_number=page_number):
+        return []
+    history_noise_indexes = _history_table_noise_line_indexes(lines)
+    history_noise_indexes.update(_history_continuation_noise_line_indexes(lines))
+    return [
+        line
+        for index, line in enumerate(lines)
+        if line and index not in history_noise_indexes and not _is_pdf_text_noise_line(line, repeated_noise=repeated_noise)
+    ]
+
+
+def _chunk_text_page_lines(lines: list[str], *, max_chunk_chars: int = 220) -> list[str]:
+    chunks: list[str] = []
+    bucket: list[str] = []
+
+    def flush_bucket() -> None:
+        if bucket:
+            chunks.append(" ".join(bucket))
+            bucket.clear()
+
+    for line in lines:
+        for piece in chunk_lines(line, max_chunk_chars=max_chunk_chars):
+            if detect_heading(piece):
+                flush_bucket()
+                chunks.append(piece)
+                continue
+
+            next_length = len(" ".join(bucket + [piece]))
+            if bucket and (_ends_sentence(bucket[-1]) or next_length > max_chunk_chars):
+                flush_bucket()
+            bucket.append(piece)
+
+    flush_bucket()
+    return chunks
+
+
+def _repeated_pdf_noise_lines(extracted_pages: list[tuple[int, str]]) -> set[str]:
+    counts: dict[str, int] = {}
+    for _, text in extracted_pages:
+        seen_on_page: set[str] = set()
+        for raw_line in text.splitlines():
+            line = normalize_text(raw_line)
+            if not line or len(line) > 80 or looks_like_structural_noise_heading(line) or detect_heading(line):
+                continue
+            seen_on_page.add(line)
+        for line in seen_on_page:
+            counts[line] = counts.get(line, 0) + 1
+    return {line for line, count in counts.items() if count >= 2}
+
+
+def _is_pdf_text_noise_line(line: str, *, repeated_noise: set[str]) -> bool:
+    if DATE_RE.match(line) or PAGE_NO_RE.match(line):
+        return True
+    return line in repeated_noise or looks_like_structural_noise_heading(line)
+
+
+def _join_split_heading_lines(lines: list[str]) -> list[str]:
+    joined_lines: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        next_line = lines[index + 1] if index + 1 < len(lines) else ""
+        if line and next_line and _heading_needs_short_continuation(line, next_line):
+            joined_lines.append(_merge_heading_continuation(line, next_line))
+            index += 2
+            continue
+        joined_lines.append(line)
+        index += 1
+    return joined_lines
+
+
+def _heading_needs_short_continuation(line: str, next_line: str) -> bool:
+    if detect_heading(line) is None:
+        return False
+    has_open_bracket = line.count("（") > line.count("）") or line.count("(") > line.count(")")
+    if not has_open_bracket:
+        return False
+    return _looks_like_short_heading_continuation(next_line)
+
+
+def _looks_like_short_heading_continuation(line: str) -> bool:
+    normalized = normalize_text(line)
+    if not normalized or len(normalized) > 30:
+        return False
+    return bool(re.match(r"^[\w\u4e00-\u9fff\s/\-]+[）)]$", normalized))
+
+
+def _merge_heading_continuation(line: str, next_line: str) -> str:
+    left = normalize_text(line).rstrip()
+    right = normalize_text(next_line).lstrip()
+    separator = ""
+    if not re.search(r"[\u4e00-\u9fff（(]$", left) or not re.match(r"^[\u4e00-\u9fff]", right):
+        separator = " "
+    merged = f"{left}{separator}{right}"
+    merged = re.sub(r"([（(])\s+", r"\1", merged)
+    merged = re.sub(r"\s+([）)])", r"\1", merged)
+    merged = re.sub(r"(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])", "", merged)
+    return merged
+
+
+def _looks_like_toc_page(lines: list[str], *, page_number: int) -> bool:
+    if page_number > 10:
+        return False
+
+    useful_lines = [line for line in lines if line and not _looks_like_pdf_control_line(line)]
+    if not useful_lines:
+        return False
+
+    marker_seen = any(line in TOC_MARKERS for line in useful_lines[:8])
+    dot_leader_count = sum(1 for line in useful_lines if looks_like_toc_dot_leader_line(line))
+    trailing_page_entry_count = sum(1 for line in useful_lines if _looks_like_toc_page_number_entry(line))
+
+    if marker_seen and trailing_page_entry_count:
+        return True
+    if dot_leader_count >= 2:
+        return True
+    return False
+
+
+def _looks_like_pdf_control_line(line: str) -> bool:
+    normalized = normalize_text(line)
+    if not normalized:
+        return True
+    return DATE_RE.match(normalized) is not None or PAGE_NO_RE.match(normalized) is not None or looks_like_document_control_line(normalized)
+
+
+def _looks_like_toc_page_number_entry(line: str) -> bool:
+    normalized = normalize_text(line)
+    if looks_like_toc_dot_leader_line(normalized):
+        return True
+    match = TRAILING_PAGE_NUMBER_RE.match(normalized)
+    if not match:
+        return False
+    return detect_heading(match.group("title")) is not None
+
+
+def _extract_history_tables(lines: list[str], *, page_number: int, table_offset: int) -> list[TableData]:
+    header_index = next((index for index, line in enumerate(lines) if HISTORY_TABLE_HEADER_RE.match(line)), None)
+    if header_index is None:
+        return []
+
+    rows = [["Nr", "Page", "Version", "Change description", "CR No."]]
+    current_row: list[str] | None = None
+
+    for line in lines[header_index + 1:]:
+        if POST_HISTORY_HEADING_RE.match(line):
+            break
+        row_match = HISTORY_TABLE_ROW_RE.match(line)
+        if row_match:
+            if current_row:
+                rows.append(current_row)
+            current_row = [row_match.group(1), row_match.group(2), row_match.group(3), row_match.group(4).strip(), ""]
+            continue
+        if current_row and line:
+            if line.upper() in {"N.A.", "NA"} or re.match(r"^P\d+", line, re.IGNORECASE):
+                current_row[4] = line if not current_row[4] else f"{current_row[4]} {line}"
+            else:
+                current_row[3] = f"{current_row[3]} {line}".strip()
+
+    if current_row:
+        rows.append(current_row)
+    if len(rows) == 1:
+        return []
+
+    return [
+        TableData(
+            table_id=f"tbl-{table_offset + 1}",
+            section_id=None,
+            page=page_number,
+            rows=rows,
+            anchors={"page": page_number, "table_type": "document_history", "line_start": header_index + 1},
+        )
+    ]
+
+
+def _extract_figure_candidates(lines: list[str], *, page_number: int, figure_offset: int) -> list[FigureData]:
+    figures: list[FigureData] = []
+    for line in lines:
+        if FIGURE_CAPTION_RE.match(line):
+            figures.append(
+                FigureData(
+                    figure_id=f"fig-{figure_offset + len(figures) + 1}",
+                    section_id=None,
+                    page=page_number,
+                    caption=line,
+                    anchors={"page": page_number, "caption": line, "source": "pdf_text_caption"},
+                )
+            )
+    return figures
+
+
+def _history_table_noise_line_indexes(lines: list[str]) -> set[int]:
+    header_index = next((index for index, line in enumerate(lines) if HISTORY_TABLE_HEADER_RE.match(line)), None)
+    first_row_index = next((index for index, line in enumerate(lines) if HISTORY_TABLE_ROW_RE.match(line)), None)
+    start_index = header_index if header_index is not None else first_row_index
+    if start_index is None:
+        return set()
+
+    noise_indexes: set[int] = set()
+    for index in range(start_index, len(lines)):
+        line = lines[index]
+        if index > start_index and POST_HISTORY_HEADING_RE.match(line):
+            break
+        noise_indexes.add(index)
+    return noise_indexes
+
+
+def _history_continuation_noise_line_indexes(lines: list[str]) -> set[int]:
+    noise_indexes: set[int] = set()
+    for index, line in enumerate(lines):
+        if POST_HISTORY_HEADING_RE.match(line):
+            break
+        if HISTORY_CONTINUATION_ROW_RE.match(line):
+            noise_indexes.add(index)
+    return noise_indexes
+
+
+def _append_section(
+    sections: list[Section],
+    section_stack: list[Section],
+    heading: DetectedHeading,
+    page_number: int,
+) -> str:
+    while section_stack and section_stack[-1].level >= heading.level:
+        section_stack.pop()
+
+    parent_id = section_stack[-1].section_id if section_stack else None
+    section = Section(
+        section_id=f"sec-{len(sections) + 1}",
+        title=heading.title,
+        level=heading.level,
+        page_range=[page_number],
+        parent_id=parent_id,
+    )
+    sections.append(section)
+    section_stack.append(section)
+    return section.section_id
+
+
+def _touch_section_page(sections: list[Section], section_id: str, page_number: int) -> None:
+    for section in sections:
+        if section.section_id == section_id and page_number not in section.page_range:
+            section.page_range.append(page_number)
+            return
 
 
 def _is_structural_slide(lines: list[str]) -> bool:

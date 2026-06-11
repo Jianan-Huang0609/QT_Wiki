@@ -20,12 +20,21 @@ from Tool.parsers import parse_document
 NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 
-def _make_docx_zip(tmp_dir: Path, paragraphs: list[str], tables: list[list[list[str]]] | None = None) -> Path:
+def _make_docx_zip(
+    tmp_dir: Path,
+    paragraphs: list[str | tuple[str, str]],
+    tables: list[list[list[str]]] | None = None,
+) -> Path:
     doc_path = tmp_dir / "test.docx"
 
     body = Element(f"{{{NS}}}body")
-    for para_text in paragraphs:
+    for item in paragraphs:
+        para_text, style = item if isinstance(item, tuple) else (item, None)
         p = SubElement(body, f"{{{NS}}}p")
+        if style:
+            p_pr = SubElement(p, f"{{{NS}}}pPr")
+            p_style = SubElement(p_pr, f"{{{NS}}}pStyle")
+            p_style.set(f"{{{NS}}}val", style)
         r = SubElement(p, f"{{{NS}}}r")
         t = SubElement(r, f"{{{NS}}}t")
         t.text = para_text
@@ -98,6 +107,70 @@ def test_docx_fragments_have_paragraph_index(tmp_dir, sample_manifest):
         assert "paragraph_index" in fragment.anchors
 
 
+def test_docx_uses_heading_styles_for_section_hierarchy(tmp_dir, sample_manifest):
+    paragraphs = [
+        ("PEP Lifecycle", "Title"),
+        ("R2 Planning", "Heading1"),
+        "PO prepares the R2 planning package.",
+        ("R2.1 Business Review", "Heading2"),
+        "Business review evidence is checked before approval.",
+        ("R3 Execution", "Heading1"),
+        "Execution starts after R2 approval.",
+    ]
+    docx_path = _make_docx_zip(tmp_dir, paragraphs)
+    sample_manifest["stored_path"] = str(docx_path)
+
+    result = parse_document(docx_path, sample_manifest)
+
+    assert result.parse_status == "parsed"
+    section_by_title = {section.title: section for section in result.sections}
+    assert section_by_title["R2 Planning"].level == 1
+    assert section_by_title["R2.1 Business Review"].level == 2
+    assert section_by_title["R2.1 Business Review"].parent_id == section_by_title["R2 Planning"].section_id
+    assert section_by_title["R3 Execution"].level == 1
+    assert section_by_title["R3 Execution"].parent_id is None
+    assert any(
+        fragment.anchors.get("heading_path") == ["R2 Planning", "R2.1 Business Review"]
+        for fragment in result.fragments
+        if "Business review evidence" in fragment.text
+    )
+
+
+def test_docx_detects_compact_numbered_headings_from_xml_order(tmp_dir, sample_manifest):
+    paragraphs = [
+        "1. 产品型号",
+        "产品型号应当在技术文档中保持一致。",
+        "2. 性能指标",
+        "性能指标应当覆盖关键系统。",
+        "2.1X射线发生装置",
+        "发生装置参数需要覆盖关键性能。",
+        "2.1.1管电压",
+        "管电压范围需要有验证证据。",
+        "2.1.1 a) 高压稳定性",
+        "稳定性证据需要绑定测试记录。",
+    ]
+    docx_path = _make_docx_zip(tmp_dir, paragraphs)
+    sample_manifest["stored_path"] = str(docx_path)
+
+    result = parse_document(docx_path, sample_manifest)
+
+    assert result.parse_status == "parsed"
+    section_by_title = {section.title: section for section in result.sections}
+    assert section_by_title["1 产品型号"].level == 1
+    assert section_by_title["2 性能指标"].level == 1
+    assert section_by_title["2.1 X射线发生装置"].level == 2
+    assert section_by_title["2.1.1 管电压"].level == 3
+    assert section_by_title["2.1.1.a 高压稳定性"].level == 4
+    assert section_by_title["2.1 X射线发生装置"].parent_id == section_by_title["2 性能指标"].section_id
+    assert section_by_title["2.1.1 管电压"].parent_id == section_by_title["2.1 X射线发生装置"].section_id
+    assert section_by_title["2.1.1.a 高压稳定性"].parent_id == section_by_title["2.1.1 管电压"].section_id
+    assert any(
+        fragment.anchors.get("heading_path") == ["2 性能指标", "2.1 X射线发生装置", "2.1.1 管电压"]
+        for fragment in result.fragments
+        if "管电压范围" in fragment.text
+    )
+
+
 def test_pdf_extracts_page_level_fragments(tmp_dir, sample_manifest):
     from Tool.parsers.pdf_parser import parse_pdf
 
@@ -133,6 +206,224 @@ def test_pdf_splits_long_page_into_multiple_fragments(tmp_dir, sample_manifest):
     assert len(result.fragments) >= 3
     assert any("第五章设备" in fragment.text for fragment in result.fragments)
     assert any(fragment.section_id for fragment in result.fragments)
+
+
+def test_pdf_chapterizes_stage_headings_and_cleans_repeated_headers(tmp_dir, sample_manifest):
+    from Tool.parsers.pdf_parser import parse_pdf
+
+    mock_reader = MagicMock()
+    page_one = MagicMock()
+    page_one.extract_text.return_value = (
+        "Company Confidential\n"
+        "1\n"
+        "R2 Planning\n"
+        "PO prepares the R2 planning package.\n"
+        "R2.1 Business Review\n"
+        "Business review evidence is checked before approval."
+    )
+    page_two = MagicMock()
+    page_two.extract_text.return_value = (
+        "Company Confidential\n"
+        "2\n"
+        "R3 Execution\n"
+        "Execution starts after R2 approval."
+    )
+    mock_reader.pages = [page_one, page_two]
+
+    with patch("Tool.parsers.pdf_parser.pypdf.PdfReader", return_value=mock_reader):
+        result = parse_pdf(tmp_dir / "pep.pdf", sample_manifest)
+
+    assert result.parse_status in ("parsed", "partially_parsed")
+    section_by_title = {section.title: section for section in result.sections}
+    assert section_by_title["R2 Planning"].level == 1
+    assert section_by_title["R2.1 Business Review"].level == 2
+    assert section_by_title["R2.1 Business Review"].parent_id == section_by_title["R2 Planning"].section_id
+    assert section_by_title["R3 Execution"].level == 1
+    assert section_by_title["R3 Execution"].parent_id is None
+    assert all("Company Confidential" not in fragment.text for fragment in result.fragments)
+    assert any(
+        fragment.anchors.get("heading_path") == ["R2 Planning", "R2.1 Business Review"]
+        for fragment in result.fragments
+        if "Business review evidence" in fragment.text
+    )
+
+
+def test_pdf_filters_document_control_page_headers(tmp_dir, sample_manifest):
+    from Tool.parsers.pdf_parser import parse_pdf
+
+    mock_reader = MagicMock()
+    page_one = MagicMock()
+    page_one.extract_text.return_value = (
+        "55 21 906 AND 708 16 XPQR 4.4/01 Page 1 of 58 9/17/2025 - 1 -\n"
+        "1 Purpose and scope / 目的和适用范围\n"
+        "This document describes the Product Engineering Process."
+    )
+    page_two = MagicMock()
+    page_two.extract_text.return_value = (
+        "55 21 906 AND 708 16 XPQR 4.4/01 Page 2 of 58 9/17/2025 - 2 -\n"
+        "2 Reference document / 参考文件\n"
+        "Reference documents are listed here."
+    )
+    mock_reader.pages = [page_one, page_two]
+
+    with patch("Tool.parsers.pdf_parser.pypdf.PdfReader", return_value=mock_reader):
+        result = parse_pdf(tmp_dir / "pep-control.pdf", sample_manifest)
+
+    assert result.parse_status in ("parsed", "partially_parsed")
+    assert [section.title for section in result.sections] == [
+        "1 Purpose and scope / 目的和适用范围",
+        "2 Reference document / 参考文件",
+    ]
+    assert all("55 21 906" not in fragment.text for fragment in result.fragments)
+
+
+def test_pdf_filters_spaced_dot_leader_toc_lines(tmp_dir, sample_manifest):
+    from Tool.parsers.pdf_parser import parse_pdf
+
+    mock_reader = MagicMock()
+    page = MagicMock()
+    page.extract_text.return_value = (
+        "7.16 COUNTRY-SPECIFIC APPROVALS (REGULATORY APPROVAL PLAN) / 特定国家核准（法规核准计划） "
+        "................................ ................................ ........................... 41\n"
+        "7.16 COUNTRY-SPECIFIC APPROVALS (REGULATORY APPROVAL PLAN) / 特定国家核准（法规核准计划）\n"
+        "Country-specific approval planning evidence is maintained."
+    )
+    mock_reader.pages = [page]
+
+    with patch("Tool.parsers.pdf_parser.pypdf.PdfReader", return_value=mock_reader):
+        result = parse_pdf(tmp_dir / "pep-toc.pdf", sample_manifest)
+
+    titles = [section.title for section in result.sections]
+    assert titles == ["7.16 COUNTRY-SPECIFIC APPROVALS (REGULATORY APPROVAL PLAN) / 特定国家核准（法规核准计划）"]
+    assert not any("........................" in fragment.text for fragment in result.fragments)
+
+
+def test_pdf_filters_split_toc_pages_before_body_content(tmp_dir, sample_manifest):
+    from Tool.parsers.pdf_parser import parse_pdf
+
+    mock_reader = MagicMock()
+    page_one = MagicMock()
+    page_one.extract_text.return_value = (
+        "Content\n"
+        "6.4 FURTHER REQUIREMENTS FOR DEVELOPMENT AND MAINTENANCE/开发和维护的进一步要求 33\n"
+        "7.16 COUNTRY-SPECIFIC APPROVALS (REGULATORY APPROVAL PLAN) / 特定国家核准（法规核准计"
+    )
+    page_two = MagicMock()
+    page_two.extract_text.return_value = (
+        "划） ................................ ................................ ................................ ...... 49\n"
+        "7.17 AFFIDAVIT FOR SERVICE SOFTWARE/ 服务软件宣誓书 ................................ ...................... 49"
+    )
+    page_three = MagicMock()
+    page_three.extract_text.return_value = (
+        "7.16 COUNTRY-SPECIFIC APPROVALS (REGULATORY APPROVAL PLAN) / 特定国家核准（法规核准计划）\n"
+        "Country-specific approval planning evidence is maintained."
+    )
+    mock_reader.pages = [page_one, page_two, page_three]
+
+    with patch("Tool.parsers.pdf_parser.pypdf.PdfReader", return_value=mock_reader):
+        result = parse_pdf(tmp_dir / "pep-split-toc.pdf", sample_manifest)
+
+    titles = [section.title for section in result.sections]
+    assert titles == ["7.16 COUNTRY-SPECIFIC APPROVALS (REGULATORY APPROVAL PLAN) / 特定国家核准（法规核准计划）"]
+
+
+def test_pdf_extracts_history_table_without_promoting_rows_to_sections(tmp_dir, sample_manifest):
+    from Tool.parsers.pdf_parser import parse_pdf
+
+    mock_reader = MagicMock()
+    page = MagicMock()
+    page.extract_text.return_value = (
+        "0 History/ 修改历史\n"
+        "Nr. Page Version Change description CR No.\n"
+        "1 All 01 Initial creation, the content transferred from 55 21 906 - AND\n"
+        "N.A.\n"
+        "2 All 02 Change content:\n"
+        "Alignment with process manual.\n"
+        "P10222\n"
+        "1 Purpose and scope / 目的和适用范围\n"
+        "This document describes the product engineering process."
+    )
+    mock_reader.pages = [page]
+
+    with patch("Tool.parsers.pdf_parser.pypdf.PdfReader", return_value=mock_reader):
+        result = parse_pdf(tmp_dir / "pep-history.pdf", sample_manifest)
+
+    titles = [section.title for section in result.sections]
+    assert "0 History/ 修改历史" in titles
+    assert "1 Purpose and scope / 目的和适用范围" in titles
+    assert all("Initial creation" not in title for title in titles)
+    assert all("Change content" not in title for title in titles)
+    assert result.tables
+    assert result.tables[0].rows[0] == ["Nr", "Page", "Version", "Change description", "CR No."]
+    assert result.tables[0].rows[1][:3] == ["1", "All", "01"]
+
+
+def test_pdf_filters_history_continuation_rows_before_body(tmp_dir, sample_manifest):
+    from Tool.parsers.pdf_parser import parse_pdf
+
+    mock_reader = MagicMock()
+    page_one = MagicMock()
+    page_one.extract_text.return_value = (
+        "0 History/ 修改历史\n"
+        "Nr. Page Version Change description CR No.\n"
+        "11 All 11 Change Description:\n"
+        "6. Chapter 5.3.4, change EOS to EOD\n"
+        "PCR 11421"
+    )
+    page_two = MagicMock()
+    page_two.extract_text.return_value = (
+        "7. Chapter 6.4.4 new added AI systems\n"
+        "8. Appendix 2 translation correction\n"
+        "1 Purpose and scope / 目的和适用范围\n"
+        "This document describes the product engineering process."
+    )
+    mock_reader.pages = [page_one, page_two]
+
+    with patch("Tool.parsers.pdf_parser.pypdf.PdfReader", return_value=mock_reader):
+        result = parse_pdf(tmp_dir / "pep-history-continuation.pdf", sample_manifest)
+
+    titles = [section.title for section in result.sections]
+    assert titles == ["0 History/ 修改历史", "1 Purpose and scope / 目的和适用范围"]
+
+
+def test_pdf_records_figure_caption_candidates(tmp_dir, sample_manifest):
+    from Tool.parsers.pdf_parser import parse_pdf
+
+    mock_reader = MagicMock()
+    page = MagicMock()
+    page.extract_text.return_value = (
+        "5.1 V-model/Requirement Tracing / V 型模式/需求跟踪\n"
+        "Figure 1/图 1: V-model/V 字型模式\n"
+        "The V-model describes design verification and validation relationships."
+    )
+    mock_reader.pages = [page]
+
+    with patch("Tool.parsers.pdf_parser.pypdf.PdfReader", return_value=mock_reader):
+        result = parse_pdf(tmp_dir / "pep-figure.pdf", sample_manifest)
+
+    assert result.figures
+    assert result.figures[0].caption == "Figure 1/图 1: V-model/V 字型模式"
+    assert result.figures[0].anchors["page"] == 1
+
+
+def test_pdf_joins_short_heading_continuation_lines(tmp_dir, sample_manifest):
+    from Tool.parsers.pdf_parser import parse_pdf
+
+    mock_reader = MagicMock()
+    page = MagicMock()
+    page.extract_text.return_value = (
+        "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（ 法规核准\n"
+        "计划）\n"
+        "Following M150, the project manager defines required evidence."
+    )
+    mock_reader.pages = [page]
+
+    with patch("Tool.parsers.pdf_parser.pypdf.PdfReader", return_value=mock_reader):
+        result = parse_pdf(tmp_dir / "pep-heading-continuation.pdf", sample_manifest)
+
+    assert [section.title for section in result.sections] == [
+        "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（法规核准计划）"
+    ]
 
 
 def test_pdf_detects_slide_like_pdf_and_skips_structural_pages(tmp_dir, sample_manifest):

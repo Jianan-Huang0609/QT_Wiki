@@ -596,3 +596,75 @@ def test_slides_outline_export_endpoint():
     assert payload["slide_count"] >= 3
     assert payload["slides"][0]["title"] == "批准知识基线"
     assert "Slides Outline" in payload["markdown"]
+
+
+def test_session_handoff_endpoint_returns_real_tree_graph_and_chat_contract(tmp_dir):
+    from App import api
+    from App.api import app
+    from Tool.contracts.canonical import CanonicalDocument, DocumentMeta, FigureData, Fragment, Section, TableData
+    from Tool.workflows.document_parse import apply_parse_workflow_contract
+
+    parsed_dir = tmp_dir / "parsed"
+    parsed_dir.mkdir()
+    canonical = CanonicalDocument(
+        document=DocumentMeta(
+            document_id="ct-pep",
+            title="CT PEP",
+            source_path="Raw/ct.pdf",
+            file_name="ct.pdf",
+            source_type="pdf",
+            doc_type="pep",
+        ),
+        sections=[
+            Section(section_id="sec-r2", title="5.3.2 R2 Responsibilities", level=1, page_range=[21]),
+            Section(section_id="sec-716", title="7.16 Regulatory Approval Plan", level=1, page_range=[41]),
+        ],
+        fragments=[
+            Fragment(
+                fragment_id="frag-r2",
+                section_id="sec-r2",
+                fragment_type="paragraph",
+                text="At R2, the Product Owner prepares QMP evidence.",
+                anchors={"page": 21, "paragraph_index": 2, "heading_path": ["5.3.2 R2 Responsibilities"]},
+            ),
+            Fragment(
+                fragment_id="frag-716",
+                section_id="sec-716",
+                fragment_type="paragraph",
+                text="The regulatory approval plan contains submission evidence.",
+                anchors={"page": 41, "paragraph_index": 1, "heading_path": ["7.16 Regulatory Approval Plan"]},
+            ),
+        ],
+        tables=[
+            TableData(
+                table_id="tbl-role",
+                section_id="sec-r2",
+                page=21,
+                rows=[["Role", "Deliverable"], ["PO", "QMP"]],
+                anchors={"page": 21, "table_index": 1, "cell_range": "R1C1:R2C2"},
+            )
+        ],
+        figures=[FigureData(figure_id="fig-flow", section_id="sec-r2", page=22, caption="Figure 1: R2 flow", anchors={"page": 22, "visual_analysis": "reviewed"})],
+        source_anchors=[{"fragment_id": "frag-r2", "anchors": {"page": 21}}],
+    )
+    apply_parse_workflow_contract(canonical, parser_name="pdf_parser")
+    canonical.save(parsed_dir / "ct-pep.json")
+
+    with patch.object(api, "PARSED_DIR", parsed_dir):
+        response = TestClient(app).get("/api/session/handoff/ct-pep")
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["schema_version"] == "session-handoff-v0.1"
+    assert payload["source"]["document_id"] == "ct-pep"
+    assert payload["source"]["parse_status"] == "parsed"
+    assert payload["tree"]["root_id"] == "doc-ct-pep"
+    assert any(item["node_type"] == "section" and item["section_id"] == "sec-r2" for item in payload["tree"]["items"])
+    assert any(node["node_type"] == "chunk" for node in payload["graph"]["nodes"])
+    assert any(edge["relation_type"] == "contains" for edge in payload["graph"]["edges"])
+    assert payload["retrieval"]["available_retrievers"] == ["rule_section", "full_text", "vector", "hybrid"]
+    assert payload["retrieval"]["preview_chunks"]
+    assert payload["chat"]["source_scope"] == {"mode": "selected_docs", "document_ids": ["ct-pep"]}
+    assert payload["chat"]["answer_contract"]["requires_citations"] is True
+    assert payload["quality"]["eval_summary"]["fail"] == 0
+    assert payload["quality"]["parser_fusion"]["schema_version"] == "parser-fusion-v0.1"
