@@ -1,0 +1,1261 @@
+{
+  "eval_summary": {
+    "pass": 1,
+    "warn": 0,
+    "fail": 0,
+    "na": 0
+  },
+  "metrics": {
+    "case_count": 1,
+    "recall_at_k": 1.0
+  },
+  "findings": [
+    {
+      "eval_id": "R1-01",
+      "case_id": "r2-po",
+      "status": "pass",
+      "message": "retrieval expected evidence found",
+      "reference": "REF-RETRIEVAL",
+      "details": {}
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "r2-po",
+      "question": "What should the Product Owner prepare during R2?",
+      "status": "pass",
+      "top_hits": [
+        {
+          "chunk_id": "chunk-doc-20260611142812-f56c6cf9-58",
+          "document_id": "doc-20260611142812-f56c6cf9",
+          "section_id": "sec-39",
+          "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+          "chunk_type": "section",
+          "score": 4.7891,
+          "matched_terms": [
+            "during",
+            "product",
+            "r2"
+          ],
+          "quote": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏 6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏 捷方法的标准裁减 Permissions: a. R1/R2 and M120/M150/M200 are combined to one R and one M milestone. Requirement specifications like Market 权限： a. R1/R2 和 M120/M150/M200 合并为一个 R 和一个 M 主评审。 需求规范（如市场 Page 33 of 54 12/10/2025 - 33 - Requirements Specification or Engineering Requirements Specification are not expected as milestone input but plann",
+          "source_refs": [
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-488",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 27,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-489",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 28,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "捷方法的标准裁减 Permissions:"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-490",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 29,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "a. R1/R2 and M120/M150/M200 are combined to one R and one M milestone."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-491",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 30,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "Requirement specifications like Market 权限："
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-492",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 31,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "a. R1/R2 和 M120/M150/M200 合并为一个 R 和一个 M 主评审。 需求规范（如市场"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-493",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 1,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "Page 33 of 54 12/10/2025 - 33 - Requirements Specification or Engineering Requirements Specification are not expected as milestone input but planned as a committed product backlog."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-494",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 2,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "They will be created according to backlog planning. Details for further milestone inputs are defined in the Quality Management Plan 需求规范或工程需求规范）不是里程碑 输入预期的，而是规划承诺的产品待办 事项。 它们将根据待办工作计划创建。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-495",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 3,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "质量管理计划中定义了更多评审输入的 详细信息。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-496",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 4,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "b. Further process results are generated step by step according to the prioritized product backlog. Meanwhile the order and the dependencies of process results must be considered. The dependencies"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-497",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 5,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "are visible on SOP level."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-498",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 6,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "• 进一步的过程结果将根据优先排序的产 品待办事项逐步生成。 同时，必须考虑 过程结果的顺序和依赖关系。 依赖关系 在 SOP（标准操作程序）层面上是可见 Constraints:"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-499",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 7,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "a. The agile product development by itself and details about proceeding and responsibilities (e.g. sprints, iterations, done criteria, special roles) are described in the quality management plan and/or on"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-500",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 8,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "SOP level, as well as other milestone tailoring."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-501",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 9,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "b. R4 and R5 are mandatory."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-502",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 10,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "c. All affected project members are informed."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-503",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 11,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "约束："
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-504",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 12,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "a. 敏捷产品开发本身以及有关流程和职责 （例如最小迭代周期、迭代、完成标准、 特殊角色）的详细信息在质量管理计划 和/或 SOP 级别以及其他评审裁减中都 有描述。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-505",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 13,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "b. R4 和 R5 是必须的。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-506",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-39",
+              "section_title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 14,
+                "heading_path": [
+                  "R2",
+                  "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏"
+                ]
+              },
+              "quote": "c. 通知所有受影响的项目成员。"
+            }
+          ]
+        },
+        {
+          "chunk_id": "chunk-doc-20260611142812-f56c6cf9-56",
+          "document_id": "doc-20260611142812-f56c6cf9",
+          "section_id": "sec-37",
+          "section_title": "R1 /R2 and M120/M150/M200 can be combined",
+          "chunk_type": "section",
+          "score": 3.2522,
+          "matched_terms": [
+            "r2"
+          ],
+          "quote": "R1 /R2 and M120/M150/M200 can be combined R1/R2 and M120/M150/M200 can be combined to one R and one M milestone: R2/M200. Required milestone inputs are the sum of R1 and",
+          "source_refs": [
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-482",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-37",
+              "section_title": "R1 /R2 and M120/M150/M200 can be combined",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 21,
+                "heading_path": [
+                  "R1 /R2 and M120/M150/M200 can be combined"
+                ]
+              },
+              "quote": "R1/R2 and M120/M150/M200 can be combined"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-483",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-37",
+              "section_title": "R1 /R2 and M120/M150/M200 can be combined",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 22,
+                "heading_path": [
+                  "R1 /R2 and M120/M150/M200 can be combined"
+                ]
+              },
+              "quote": "to one R and one M milestone: R2/M200."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-484",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-37",
+              "section_title": "R1 /R2 and M120/M150/M200 can be combined",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 23,
+                "heading_path": [
+                  "R1 /R2 and M120/M150/M200 can be combined"
+                ]
+              },
+              "quote": "Required milestone inputs are the sum of R1 and"
+            }
+          ]
+        },
+        {
+          "chunk_id": "chunk-doc-20260611142812-f56c6cf9-57",
+          "document_id": "doc-20260611142812-f56c6cf9",
+          "section_id": "sec-38",
+          "section_title": "R2",
+          "chunk_type": "section",
+          "score": 3.2002,
+          "matched_terms": [
+            "r2"
+          ],
+          "quote": "R2 R2. 平台的第一个版本开发经历所有主评审 （M120， R1，M150，R2，M200）。 标准裁减： 对于后续项目R1 / R2和 M120 / M150 / M200 可以组合为一个 R 和一个 M 主评审：R2 / M200。 所需的评审输入是 R1 和 R2 的总和。",
+          "source_refs": [
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-485",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-38",
+              "section_title": "R2",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 24,
+                "heading_path": [
+                  "R2"
+                ]
+              },
+              "quote": "R2."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-486",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-38",
+              "section_title": "R2",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 25,
+                "heading_path": [
+                  "R2"
+                ]
+              },
+              "quote": "平台的第一个版本开发经历所有主评审 （M120， R1，M150，R2，M200）。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-487",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-38",
+              "section_title": "R2",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 26,
+                "heading_path": [
+                  "R2"
+                ]
+              },
+              "quote": "标准裁减： 对于后续项目R1 / R2和 M120 / M150 / M200 可以组合为一个 R 和一个 M 主评审：R2 / M200。 所需的评审输入是 R1 和 R2 的总和。"
+            }
+          ]
+        },
+        {
+          "chunk_id": "chunk-doc-20260611142812-f56c6cf9-75",
+          "document_id": "doc-20260611142812-f56c6cf9",
+          "section_id": "sec-56",
+          "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+          "chunk_type": "section",
+          "score": 3.1498,
+          "matched_terms": [
+            "during",
+            "product",
+            "r2"
+          ],
+          "quote": "6.16.1 Changes during product development/ 产品开发中的更改 6.16.1 Changes during product development/ 产品开发中的更改 During the product engineering process, changes to the released design input document and the resulting adaptations to design output documents must be performed in accordance with [1]. If necessary, regulations deviating from these stipulations may be set out in the quality management plan to cover the correction of documents during the development phase but prior to completion of verification",
+          "source_refs": [
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-580",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-56",
+              "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+              "anchor_label": "p.36",
+              "anchors": {
+                "page": 36,
+                "paragraph_index": 12,
+                "heading_path": [
+                  "R2",
+                  "6.15 Transfer to Production/ 生产转移",
+                  "6.16.1 Changes during product development/ 产品开发中的更改"
+                ]
+              },
+              "quote": "6.16.1 Changes during product development/ 产品开发中的更改"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-581",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-56",
+              "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+              "anchor_label": "p.36",
+              "anchors": {
+                "page": 36,
+                "paragraph_index": 13,
+                "heading_path": [
+                  "R2",
+                  "6.15 Transfer to Production/ 生产转移",
+                  "6.16.1 Changes during product development/ 产品开发中的更改"
+                ]
+              },
+              "quote": "During the product engineering process, changes to the released design input document and the resulting adaptations to design output documents must be performed in accordance"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-582",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-56",
+              "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+              "anchor_label": "p.36",
+              "anchors": {
+                "page": 36,
+                "paragraph_index": 14,
+                "heading_path": [
+                  "R2",
+                  "6.15 Transfer to Production/ 生产转移",
+                  "6.16.1 Changes during product development/ 产品开发中的更改"
+                ]
+              },
+              "quote": "with [1]. If necessary, regulations deviating from these stipulations may be set out in the quality management plan to cover the correction of documents during the development phase but"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-583",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-56",
+              "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+              "anchor_label": "p.36",
+              "anchors": {
+                "page": 36,
+                "paragraph_index": 15,
+                "heading_path": [
+                  "R2",
+                  "6.15 Transfer to Production/ 生产转移",
+                  "6.16.1 Changes during product development/ 产品开发中的更改"
+                ]
+              },
+              "quote": "prior to completion of verification."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-584",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-56",
+              "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+              "anchor_label": "p.36",
+              "anchors": {
+                "page": 36,
+                "paragraph_index": 16,
+                "heading_path": [
+                  "R2",
+                  "6.15 Transfer to Production/ 生产转移",
+                  "6.16.1 Changes during product development/ 产品开发中的更改"
+                ]
+              },
+              "quote": "If applicable error tracking is performed according to defect management process."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-585",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-56",
+              "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+              "anchor_label": "p.36",
+              "anchors": {
+                "page": 36,
+                "paragraph_index": 17,
+                "heading_path": [
+                  "R2",
+                  "6.15 Transfer to Production/ 生产转移",
+                  "6.16.1 Changes during product development/ 产品开发中的更改"
+                ]
+              },
+              "quote": "在产品开发过程中， 对已经发布的设计输入文档 和设计输出文档结果的调整必须遵照[1]的流程。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-586",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-56",
+              "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+              "anchor_label": "p.36",
+              "anchors": {
+                "page": 36,
+                "paragraph_index": 18,
+                "heading_path": [
+                  "R2",
+                  "6.15 Transfer to Production/ 生产转移",
+                  "6.16.1 Changes during product development/ 产品开发中的更改"
+                ]
+              },
+              "quote": "必要的时候，对这些操作的偏差需要在 QMP 中 列出以覆盖在开发过程中的文档更正， 但是要早 于验证完成前。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-587",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-56",
+              "section_title": "6.16.1 Changes during product development/ 产品开发中的更改",
+              "anchor_label": "p.36",
+              "anchors": {
+                "page": 36,
+                "paragraph_index": 19,
+                "heading_path": [
+                  "R2",
+                  "6.15 Transfer to Production/ 生产转移",
+                  "6.16.1 Changes during product development/ 产品开发中的更改"
+                ]
+              },
+              "quote": "如果适用，错误跟踪将根据缺陷管理流程进行。"
+            }
+          ]
+        },
+        {
+          "chunk_id": "chunk-doc-20260611142812-f56c6cf9-41",
+          "document_id": "doc-20260611142812-f56c6cf9",
+          "section_id": "sec-29",
+          "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+          "chunk_type": "section",
+          "score": 3.1281,
+          "matched_terms": [
+            "prepare",
+            "product",
+            "r2"
+          ],
+          "quote": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发 5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发 Implementation & Integration (M200 – R3) 实现&集成（M200- R3） Start: M200 Decision 开始：M200 决定 • Design Review R2 • Project request M200 incl. FPP • 设计评审R2 • 项目要求M200包括FPP • Development of the product (definition of design, implementation, verification) • Translation of requirements from subsystem requirement specification(s) into component requirement specifications, design descriptions, ",
+          "source_refs": [
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-311",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 2,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-312",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 3,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "Implementation & Integration (M200 – R3) 实现&集成（M200- R3） Start: M200 Decision 开始：M200 决定 • Design Review R2 • Project request M200 incl. FPP • 设计评审R2 • 项目要求M200包括FPP • Development of the product (definition of"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-313",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 4,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "design, implementation, verification) • Translation of requirements from subsystem requirement specification(s) into component requirement specifications, design descriptions, and designs • 产品开发（设计定义、实现、验证）"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-314",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 5,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• 从子系统需求规范中将需求转化为组件需 求规范、设计描述和设计 • The requirements from the subsystem requirement specification(s) are translated into components requirements specifications, design specifications, and designs."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-315",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 6,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• 将子系统需求规范转换成部件需求规范， 设计规范和设计实现。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-316",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 7,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• The requirements for the contractor must then be specified, depending on the decision as to whether the development is going to be in-house and/or carried out by suppliers."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-317",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 8,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• 基于由内部和/或供应商执行开发的决定, 相应的需求必须描述清楚。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-318",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 9,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• Country-specific instruction for use is prepared, and the requirement specification is created."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-319",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 10,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• 准备针对特定国家的使用说明并创建需求 规范。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-320",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 11,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• Service support documentation is prepared. • 准备服务支持文档。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-321",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 12,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• Continuation of the risk management activities • 继续进行风险管理活动 • Specify verification activities: system verification test plan • 明确验证活动：系统验证测试计划 • Create detailed product design for HW and SW • 为硬件（HW）和软件（SW）创建详细的产 品设计"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-322",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 13,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• Implement and realize HW and SW design • 实施和实现硬件（HW）和软件（SW）设计 • Create test specifications, perform verification test at unit/component levels and document verification results; create"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-323",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 14,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "the necessary detailed design description:"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-324",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 15,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "test specification, test record, design description • 创建测试规范， 执行单元/组件级别的验证 测试并记录验证结果； 创建必要的详细设 计说明：测试规范、 测试记录、 设计描述。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-325",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-29",
+              "section_title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+              "anchor_label": "p.25",
+              "anchors": {
+                "page": 25,
+                "paragraph_index": 16,
+                "heading_path": [
+                  "5 Process & Requirement/ 过程和需求",
+                  "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+                  "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发"
+                ]
+              },
+              "quote": "• Ensure data quality and documentation for AI and prepare user information."
+            }
+          ]
+        },
+        {
+          "chunk_id": "chunk-doc-20260611142812-f56c6cf9-59",
+          "document_id": "doc-20260611142812-f56c6cf9",
+          "section_id": "sec-40",
+          "section_title": "6.3 Requirements for the product/ 产品需求",
+          "chunk_type": "section",
+          "score": 3.101,
+          "matched_terms": [
+            "product",
+            "r2",
+            "should"
+          ],
+          "quote": "6.3 Requirements for the product/ 产品需求 6.3 Requirements for the product/ 产品需求 Requirements must be described in a structured and unambiguous manner and should contain acceptance criteria. Specifications for implementation should only be described as detailed as absolute necessary, to give the responsible competence centers or suppliers 必须以结构化和明确的方式描述需求， 并应包含 验收标准。 实施规范仅在有绝对必要时进行详细 描述， 以为相关技术中心或供应商提供合理灵活",
+          "source_refs": [
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-507",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-40",
+              "section_title": "6.3 Requirements for the product/ 产品需求",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 15,
+                "heading_path": [
+                  "R2",
+                  "6.3 Requirements for the product/ 产品需求"
+                ]
+              },
+              "quote": "6.3 Requirements for the product/ 产品需求"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-508",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-40",
+              "section_title": "6.3 Requirements for the product/ 产品需求",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 16,
+                "heading_path": [
+                  "R2",
+                  "6.3 Requirements for the product/ 产品需求"
+                ]
+              },
+              "quote": "Requirements must be described in a structured and unambiguous manner and should contain acceptance criteria. Specifications for implementation should only be described as detailed as absolute necessary, to give the"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-509",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-40",
+              "section_title": "6.3 Requirements for the product/ 产品需求",
+              "anchor_label": "p.33",
+              "anchors": {
+                "page": 33,
+                "paragraph_index": 17,
+                "heading_path": [
+                  "R2",
+                  "6.3 Requirements for the product/ 产品需求"
+                ]
+              },
+              "quote": "responsible competence centers or suppliers 必须以结构化和明确的方式描述需求， 并应包含 验收标准。 实施规范仅在有绝对必要时进行详细 描述， 以为相关技术中心或供应商提供合理灵活"
+            }
+          ]
+        },
+        {
+          "chunk_id": "chunk-doc-20260611142812-f56c6cf9-123",
+          "document_id": "doc-20260611142812-f56c6cf9",
+          "section_id": "sec-97",
+          "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+          "chunk_type": "section",
+          "score": 3.031,
+          "matched_terms": [
+            "during",
+            "product"
+          ],
+          "quote": "8.7 Responsibilities during delivery / 发运中的职责 8.7 Responsibilities during delivery / 发运中的职责 The following processes cover the most important activities during product support: • Supply chain management (SCM): Production (procurement), delivery (incl. DHR preparation), installation and commissioning, improvements to the production process 以下是在产品支持过程中会参与的主要流程： • 供应链管理 （SCM） ： 生产 （采购） ， 发运 （包 括 DHR 准备） ，安装和投产，生产过程的提 高 • Product lifecycle management (PLM): Error correction, product upgrades • 产品生命周期",
+          "source_refs": [
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-981",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.53",
+              "anchors": {
+                "page": 53,
+                "paragraph_index": 19,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "8.7 Responsibilities during delivery / 发运中的职责"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-982",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.53",
+              "anchors": {
+                "page": 53,
+                "paragraph_index": 20,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "The following processes cover the most important activities during product support:"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-983",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.53",
+              "anchors": {
+                "page": 53,
+                "paragraph_index": 21,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "• Supply chain management (SCM):"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-984",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.53",
+              "anchors": {
+                "page": 53,
+                "paragraph_index": 22,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "Production (procurement), delivery (incl."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-985",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.53",
+              "anchors": {
+                "page": 53,
+                "paragraph_index": 23,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "DHR preparation), installation and commissioning, improvements to the production process 以下是在产品支持过程中会参与的主要流程："
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-986",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.53",
+              "anchors": {
+                "page": 53,
+                "paragraph_index": 24,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "• 供应链管理 （SCM） ： 生产 （采购） ， 发运 （包 括 DHR 准备） ，安装和投产，生产过程的提 高 • Product lifecycle management (PLM): Error correction, product upgrades • 产品生命周期管理（PLM） ：错误纠正，产 品升级。"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-987",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.54",
+              "anchors": {
+                "page": 54,
+                "paragraph_index": 1,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "Page 54 of 54 12/10/2025 - 54 - • Quality management: Monitoring and evaluating product quality • 质量管理：监控和评估产品的质量 • Customer service (CS):"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-988",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.54",
+              "anchors": {
+                "page": 54,
+                "paragraph_index": 2,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "• Provision of repair and maintenance including supply of spare parts • Provision of update / upgrade instructions • Escalation of service problems to specific persons within CT development and to CT • 客户服务（CS）:"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-989",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-97",
+              "section_title": "8.7 Responsibilities during delivery / 发运中的职责",
+              "anchor_label": "p.54",
+              "anchors": {
+                "page": 54,
+                "paragraph_index": 3,
+                "heading_path": [
+                  "8 Tasks and responsibilities/ 任务和职责",
+                  "8.7 Responsibilities during delivery / 发运中的职责"
+                ]
+              },
+              "quote": "• 提供维修和维护服务包括备件 • 提供更新和升级的指导 • 将服务过程中的问题汇报给 CT 指定的开发 人员以及管理人员"
+            }
+          ]
+        },
+        {
+          "chunk_id": "chunk-doc-20260611142812-f56c6cf9-55",
+          "document_id": "doc-20260611142812-f56c6cf9",
+          "section_id": "sec-36",
+          "section_title": "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标",
+          "chunk_type": "section",
+          "score": 1.6393,
+          "matched_terms": [
+            "r2"
+          ],
+          "quote": "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标 6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标 准裁减 The first version of a platform is developed with all milestones (M120, R1, M150, R2, M200). Standard Tailoring: For successor projects",
+          "source_refs": [
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-479",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-36",
+              "section_title": "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 18,
+                "heading_path": [
+                  "6 General requirements/ 通用要求",
+                  "6.2 Tailoring/ 裁减",
+                  "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标"
+                ]
+              },
+              "quote": "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标"
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-480",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-36",
+              "section_title": "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 19,
+                "heading_path": [
+                  "6 General requirements/ 通用要求",
+                  "6.2 Tailoring/ 裁减",
+                  "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标"
+                ]
+              },
+              "quote": "准裁减 The first version of a platform is developed with all milestones (M120, R1, M150, R2, M200)."
+            },
+            {
+              "document_id": "doc-20260611142812-f56c6cf9",
+              "fragment_id": "frag-481",
+              "file_name": "CT PEP AND 308 11.pdf",
+              "section_id": "sec-36",
+              "section_title": "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标",
+              "anchor_label": "p.32",
+              "anchors": {
+                "page": 32,
+                "paragraph_index": 20,
+                "heading_path": [
+                  "6 General requirements/ 通用要求",
+                  "6.2 Tailoring/ 裁减",
+                  "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标"
+                ]
+              },
+              "quote": "Standard Tailoring: For successor projects"
+            }
+          ]
+        }
+      ],
+      "strategy_used": "hybrid_retrieval",
+      "evidence_coverage": {
+        "documents": [
+          "doc-20260611142812-f56c6cf9"
+        ],
+        "sections": [
+          "sec-29",
+          "sec-36",
+          "sec-37",
+          "sec-38",
+          "sec-39",
+          "sec-40",
+          "sec-56",
+          "sec-97"
+        ],
+        "hit_count": 8
+      },
+      "details": {}
+    }
+  ]
+}

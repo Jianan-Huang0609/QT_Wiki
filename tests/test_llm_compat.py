@@ -65,8 +65,46 @@ def test_llm_tool_ask_sends_request(sample_config_file):
         result = tool.ask("测试问题")
         assert result == "测试回复"
         mock_post.assert_called_once()
-        call_kwargs = mock_post.call_args
-        assert "messages" in call_kwargs[1]["json"] or "messages" in call_kwargs.kwargs.get("json", {})
+        payload = mock_post.call_args.kwargs["json"]
+        assert "messages" in payload
+        assert "temperature" in payload
+        assert "top_p" in payload
+
+
+@pytest.mark.parametrize("deployment", ["gpt-5", "gpt-5.5"])
+def test_gpt5_series_omits_sampling_controls(tmp_path, deployment):
+    from Tool.llm.client import LLMTool
+
+    config_path = tmp_path / f"azure_{deployment.replace('.', '_')}_config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "provider": "azure_openai",
+                "azure_api_key": "test-key",
+                "azure_endpoint": "https://test-endpoint.example.com",
+                "azure_deployment": deployment,
+                "model": deployment,
+                "api_version": "2024-02-01",
+                "max_tokens": 100,
+                "temperature": 0.2,
+            }
+        ),
+        encoding="utf-8",
+    )
+    tool = LLMTool(str(config_path))
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"choices": [{"message": {"content": "OK"}}]}
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("Tool.llm.client.requests.post", return_value=mock_response) as mock_post:
+        result = tool.ask("测试问题", temperature=0.2, top_p=0.6)
+
+    payload = mock_post.call_args.kwargs["json"]
+    assert result == "OK"
+    assert "temperature" not in payload
+    assert "top_p" not in payload
+    assert payload["max_completion_tokens"] == 100
 
 
 def test_ask_llm_uses_default_config():

@@ -59,10 +59,11 @@ class LLMTool:
 
         payload = {
             "messages": messages,
-            "temperature": request.temperature,
-            "top_p": request.top_p,
             "max_completion_tokens": request.max_tokens,
         }
+        if self._supports_sampling_controls():
+            payload["temperature"] = request.temperature
+            payload["top_p"] = request.top_p
 
         if self.provider == "azure_openai":
             url = f"{self.endpoint}/openai/deployments/{self.deployment}/chat/completions"
@@ -114,6 +115,10 @@ class LLMTool:
         except Exception:
             LOGGER.exception("LLM 请求失败：provider=%s，model=%s，config=%s", self.provider, self.model, self.config_path)
             raise
+
+    def _supports_sampling_controls(self) -> bool:
+        deployment_or_model = str(self.deployment or self.model or "").strip().casefold()
+        return deployment_or_model not in {"gpt-5", "gpt-5.5"}
 
 
 _TOOLS: dict[str, LLMTool] = {}

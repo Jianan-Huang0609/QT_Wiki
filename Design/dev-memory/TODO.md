@@ -27,7 +27,7 @@ Harness：`repo-dev-harness`
   - 证据：[../PRD-流程问答工作台.md](../PRD-流程问答工作台.md) 状态更新为 Decisioned Draft。
 
 - [x] 重写 Todo+Spec 为清晰执行板。
-  - 证据：[../Todo+Spec-流程问答工作台.md](../Todo+Spec-流程问答工作台.md) 第一屏能看到 Phase 0/1/2/3 待办。
+  - 证据：[../old/Todo+Spec-流程问答工作台.md](../old/Todo+Spec-流程问答工作台.md) 第一屏能看到 Phase 0/1/2/3 待办；当前执行项已收敛到 [../TODO.md](../TODO.md)。
 
 - [x] 同步 Design 入口和开发记忆。
   - 证据：[../TODO.md](../TODO.md) 成为唯一阶段计划入口，计划/方案/TODO 按 Phase 0-5 展开；[../README.md](../README.md) 改为附件导航；[PROJECT-MEMORY.md](PROJECT-MEMORY.md)、[SESSION-WIP.md](SESSION-WIP.md)、[CHANGELOG.md](CHANGELOG.md) 与当前决策一致。
@@ -36,10 +36,10 @@ Harness：`repo-dev-harness`
   - 证据：[../PRD-流程问答工作台.md](../PRD-流程问答工作台.md) 当前版本为 v0.3，MVP 明确为正式互动 Session。
 
 - [x] 完成 Multi-input Parser 与 RAG Workflow 研究。
-  - 证据：[../MultiInput-Parser-RAG-Workflow-设计.md](../MultiInput-Parser-RAG-Workflow-设计.md) 记录多格式解析、章节化、Script/LLM/Evals 分工和不同 RAG 策略。
+  - 证据：[../old/MultiInput-Parser-RAG-Workflow-设计.md](../old/MultiInput-Parser-RAG-Workflow-设计.md) 记录多格式解析、章节化、Script/LLM/Evals 分工和不同 RAG 策略。
 
 - [x] 完成 Parser Workflow + Evals 实施计划。
-  - 证据：[../Parser-Workflow-Evals-实施计划.md](../Parser-Workflow-Evals-实施计划.md) 吸收 BUs_CER / LEFA_v6 的抓取完整性、真源返回、章节正确性质量门，并定义人工核查 Gate。
+  - 证据：[../old/Parser-Workflow-Evals-实施计划.md](../old/Parser-Workflow-Evals-实施计划.md) 吸收 BUs_CER / LEFA_v6 的抓取完整性、真源返回、章节正确性质量门，并定义人工核查 Gate。
 
 ## 3. Next Implementation
 
@@ -72,7 +72,7 @@ Harness：`repo-dev-harness`
 - [x] Gate 4/5 Section Chunk + Retrieval Eval MVP：section chunks、source refs、retrieval strategy trace、retrieval eval cases。
   - 证据：CT 146 chunks / MI 93 chunks / XP 163 chunks；CT 7.16 selected-docs 检索排第一；R2 查询回到 R2 正文/裁剪规则；最终验证 `109 passed`。
 - [ ] Gate 6 Adaptive Answer Workflow：自适应主 Chat 回答，先解析 question intent 和企业关键词，再把 retrieval hits 转成 AnswerEvidencePackage，固定 citation、abstention 和非模板化输出 contract。
-  - 执行入口：[../TODO.md](../TODO.md) Phase 4；历史方案附件：[../Gate6-Adaptive-Answer-Workflow-Plan.md](../Gate6-Adaptive-Answer-Workflow-Plan.md)。
+  - 执行入口：[../TODO.md](../TODO.md) Phase C；历史方案附件：[../old/Gate6-Adaptive-Answer-Workflow-Plan.md](../old/Gate6-Adaptive-Answer-Workflow-Plan.md)。
   - 最新进展：G6-01/02/03 已完成，`Tool/workflows/answer.py` 固化 `QuestionIntent`、企业关键词归一和 `AnswerEvidencePackage`；验证 `compileall`、`pytest`、`git diff --check`、diagnostics 通过，当前 `114 passed`。
 - [ ] Gate 7 Visual OCR / Multimodal pipeline：基于 `visual_review_items` 做 crop、OCR 或 multimodal 候选，并进入人工 review。
 
@@ -91,10 +91,10 @@ Harness：`repo-dev-harness`
 - [x] 完成 Gate 1 Parser Workflow Contract 与 Markdown parser MVP。
 - [x] 完成 Parser Quality Eval MVP，动态捕捉章节漂移、抓取缺口、章节树错误、复杂表格/图片风险和 LLM 输出缺证据。
 - [x] 完成 Gate 3 PEP smoke 检查机制补强：文档控制页眉、目录点线噪音和孤立深层章节进入 workflow eval/review items。
-- [x] 完成 CT 反馈驱动的 PDF parser 修复，并新增 [../Pro-Input-Praser.md](../Pro-Input-Praser.md) 经验文档。
+- [x] 完成 CT 反馈驱动的 PDF parser 修复，并新增 [../old/Pro-Input-Praser.md](../old/Pro-Input-Praser.md) 经验文档。
 - [x] 完成 Section Chunk / Retrieval Eval / Visual Review Queue MVP。
 - [x] 整理 Design 目录上层入口和阶段计划。
-  - 证据：[../TODO.md](../TODO.md) 成为 Design 唯一阶段计划入口；[../README.md](../README.md) 改为附件导航；[../Todo+Spec-流程问答工作台.md](../Todo+Spec-流程问答工作台.md) 标注为 Session MVP 详细规格。
+  - 证据：[../TODO.md](../TODO.md) 成为 Design 唯一执行入口；[../README.md](../README.md) 改为当前设计导航；历史 Session MVP 详细规格归档到 [../old/Todo+Spec-流程问答工作台.md](../old/Todo+Spec-流程问答工作台.md)。
 
 ## 5. Later
 

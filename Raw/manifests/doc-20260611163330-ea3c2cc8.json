@@ -1,0 +1,18 @@
+{
+  "document_id": "doc-20260611163330-ea3c2cc8",
+  "title": "History/修改历史",
+  "file_name": "20260611163330-XP PEP AND 308 11.pdf",
+  "stored_path": "Raw\\20260611163330-XP PEP AND 308 11.pdf",
+  "mime_type": "application/pdf",
+  "source_system": "manual_cli",
+  "biz_domain": "generic",
+  "department": "unknown",
+  "owner": "unknown",
+  "confidentiality": "internal",
+  "version": "v1",
+  "checksum": "ea3c2cc8456cd1989ee51340b95e6e6478719772f49aa1715e1263e9d77a9be8",
+  "ingested_at": "2026-06-11T16:33:30",
+  "parse_status": "needs_review",
+  "parsed_output": "C:\\Users\\z004wtps\\OneDrive - Siemens Healthineers\\07 AI related\\A. 自开发\\QT Wiki Agent\\QT-wiki\\Tool\\output\\parsed\\doc-20260611163330-ea3c2cc8.json",
+  "manifest_path": "Raw\\manifests\\doc-20260611163330-ea3c2cc8.json"
+}

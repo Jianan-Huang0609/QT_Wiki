@@ -1,0 +1,37 @@
+{
+  "eval_summary": {
+    "pass": 2,
+    "warn": 0,
+    "fail": 0,
+    "na": 0
+  },
+  "metrics": {
+    "provider_count": 1,
+    "fusion_decision_count": 0,
+    "low_confidence_decision_count": 0,
+    "visual_candidate_count": 0,
+    "anchored_visual_candidate_count": 0
+  },
+  "findings": [
+    {
+      "eval_id": "F1-01",
+      "status": "pass",
+      "message": "fusion metadata records provider contribution",
+      "reference": "REF-FUSION-EVAL",
+      "details": {
+        "providers": [
+          "markdown_text"
+        ]
+      }
+    },
+    {
+      "eval_id": "F2-01",
+      "status": "pass",
+      "message": "fusion decisions meet confidence threshold",
+      "reference": "REF-FUSION-EVAL",
+      "details": {
+        "low_confidence_decision_ids": []
+      }
+    }
+  ]
+}

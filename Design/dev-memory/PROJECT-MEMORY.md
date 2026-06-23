@@ -19,14 +19,17 @@
 - 2026-06-10 已实现 Gate 4/5 Section Chunk + Retrieval Eval MVP：section chunks、source-scope retrieval、retrieval eval、chunks API 和 visual review queue 已进入代码；CT/MI/XP smoke 当前为 146 / 93 / 163 chunks，最近完整验证 `109 passed`。
 - 2026-06-10 Gate 6 已收敛为下一阶段：先做 deterministic QuestionIntent、企业关键词归一和 AnswerEvidencePackage，再接 adaptive prompt builder、answer eval 和 Session Query API。
 - 2026-06-10 已实现 Gate 6 Answer Foundation：`Tool/workflows/answer.py` 提供 deterministic QuestionIntent、企业关键词归一和 AnswerEvidencePackage；History/template change 与缺 source_refs hit 不作为 primary evidence。
-- Design 目录当前采用“一主多附件”：计划、方案、TODO 都以 [../TODO.md](../TODO.md) Phase 0-5 为准；外部 Plan / Review / Notes 文档只作为证据附件或历史背景。
+- Design 目录当前采用“一主三 Spec + PRD + old archive”：具体操作以 [../TODO.md](../TODO.md) 为准；框架设计和策略判断写入 [../Spec-Parser-RAG.md](../Spec-Parser-RAG.md)、[../Spec-Chat-Workflow.md](../Spec-Chat-Workflow.md)、[../Spec-UI-Workspace.md](../Spec-UI-Workspace.md)；外部 Plan / Review / Notes 文档归档到 [../old/](../old/) 作为历史背景。
 - GitHub Pages 作为静态前端、静态索引和导出产物托管目标；上传和 AI 解析先由本地 FastAPI、CLI/build script 或后续轻量服务生成 JSON/Markdown。
 
 ## Current Source Of Truth
 
 - PRD: [../PRD-流程问答工作台.md](../PRD-流程问答工作台.md)
-- Design master stage plan: [../TODO.md](../TODO.md)
-- Todo + Spec: [../Todo+Spec-流程问答工作台.md](../Todo+Spec-流程问答工作台.md)
+- Design master TODO: [../TODO.md](../TODO.md)
+- Parser/RAG Spec: [../Spec-Parser-RAG.md](../Spec-Parser-RAG.md)
+- Chat Workflow Spec: [../Spec-Chat-Workflow.md](../Spec-Chat-Workflow.md)
+- UI Workspace Spec: [../Spec-UI-Workspace.md](../Spec-UI-Workspace.md)
+- Historical docs archive: [../old/](../old/)
 - 功能文档入口: [../../QT-Wiki-功能文档.md](../../QT-Wiki-功能文档.md)
 - 根变更记录: [../../CHANGELOG.md](../../CHANGELOG.md)
 

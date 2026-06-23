@@ -1,0 +1,322 @@
+{
+  "question": "What should the Product Owner prepare during R2?",
+  "strategy_used": "hybrid_retrieval",
+  "source_scope": {
+    "mode": "selected_docs",
+    "document_ids": [
+      "doc-20260611142119-76729744"
+    ]
+  },
+  "hits": [
+    {
+      "chunk": {
+        "chunk_id": "chunk-doc-20260611142119-76729744-4",
+        "document_id": "doc-20260611142119-76729744",
+        "document_title": "Test PEP Review Fixture",
+        "file_name": "g9-test-pep.md",
+        "section_id": "sec-6",
+        "section_title": "5.2 R2 Planning",
+        "section_path": [
+          "Test PEP Review Fixture",
+          "5 Process and Requirement",
+          "5.2 R2 Planning"
+        ],
+        "chunk_type": "section",
+        "text": "5.2 R2 Planning During R2, the Product Owner shall prepare the QMP input, confirm product requirements, and coordinate with the Project Manager before the review gate. | Role | Responsibility | Deliverable | | --- | --- | --- | | Product Owner | Prepare R2 product requirement input | QMP | | Project Manager | Coordinate R2 review readiness | Review plan |",
+        "quote": "5.2 R2 Planning During R2, the Product Owner shall prepare the QMP input, confirm product requirements, and coordinate with the Project Manager before the review gate. | Role | Responsibility | Deliverable | | --- | --- | --- | | Product Owner | Prepare R2 product requirement input | QMP | | Project Manager | Coordinate R2 review readiness | Review plan |",
+        "source_refs": [
+          {
+            "document_id": "doc-20260611142119-76729744",
+            "fragment_id": "frag-4",
+            "file_name": "g9-test-pep.md",
+            "section_id": "sec-6",
+            "section_title": "5.2 R2 Planning",
+            "anchor_label": "L21-L21",
+            "anchors": {
+              "line_start": 21,
+              "line_end": 21,
+              "heading_path": [
+                "Test PEP Review Fixture",
+                "5 Process and Requirement",
+                "5.2 R2 Planning"
+              ]
+            },
+            "quote": "During R2, the Product Owner shall prepare the QMP input, confirm product requirements, and coordinate with the Project Manager before the review gate."
+          },
+          {
+            "document_id": "doc-20260611142119-76729744",
+            "fragment_id": "frag-5",
+            "file_name": "g9-test-pep.md",
+            "section_id": "sec-6",
+            "section_title": "5.2 R2 Planning",
+            "anchor_label": "L23-L26",
+            "anchors": {
+              "line_start": 23,
+              "line_end": 26,
+              "heading_path": [
+                "Test PEP Review Fixture",
+                "5 Process and Requirement",
+                "5.2 R2 Planning"
+              ]
+            },
+            "quote": "| Role | Responsibility | Deliverable | | --- | --- | --- | | Product Owner | Prepare R2 product requirement input | QMP | | Project Manager | Coordinate R2 review readiness | Review plan |"
+          }
+        ],
+        "anchors": {
+          "line_start": 21,
+          "line_end": 26
+        },
+        "signals": [
+          "stage_r2",
+          "role_product_owner",
+          "deliverable_qmp"
+        ],
+        "metadata": {}
+      },
+      "score": 4.918,
+      "matched_terms": [
+        "during",
+        "owner",
+        "prepare",
+        "product",
+        "product owner",
+        "r2"
+      ]
+    },
+    {
+      "chunk": {
+        "chunk_id": "chunk-doc-20260611142119-76729744-9",
+        "document_id": "doc-20260611142119-76729744",
+        "document_title": "Test PEP Review Fixture",
+        "file_name": "g9-test-pep.md",
+        "section_id": "sec-6",
+        "section_title": "5.2 R2 Planning",
+        "section_path": [
+          "Test PEP Review Fixture",
+          "5 Process and Requirement",
+          "5.2 R2 Planning"
+        ],
+        "chunk_type": "table",
+        "text": "5.2 R2 Planning Role | Responsibility | Deliverable --- | --- | --- Product Owner | Prepare R2 product requirement input | QMP Project Manager | Coordinate R2 review readiness | Review plan",
+        "quote": "5.2 R2 Planning Role | Responsibility | Deliverable --- | --- | --- Product Owner | Prepare R2 product requirement input | QMP Project Manager | Coordinate R2 review readiness | Review plan",
+        "source_refs": [
+          {
+            "document_id": "doc-20260611142119-76729744",
+            "table_id": "tbl-2",
+            "file_name": "g9-test-pep.md",
+            "section_id": "sec-6",
+            "section_title": "5.2 R2 Planning",
+            "anchor_label": "L23-L26",
+            "anchors": {
+              "line_start": 23,
+              "line_end": 26,
+              "heading_path": [
+                "Test PEP Review Fixture",
+                "5 Process and Requirement",
+                "5.2 R2 Planning"
+              ]
+            },
+            "quote": "Role | Responsibility | Deliverable\n--- | --- | ---\nProduct Owner | Prepare R2 product requirement input | QMP"
+          }
+        ],
+        "anchors": {
+          "line_start": 23,
+          "line_end": 26,
+          "heading_path": [
+            "Test PEP Review Fixture",
+            "5 Process and Requirement",
+            "5.2 R2 Planning"
+          ]
+        },
+        "signals": [
+          "stage_r2",
+          "role_product_owner",
+          "deliverable_qmp",
+          "role_table",
+          "deliverable_table",
+          "table"
+        ],
+        "metadata": {
+          "row_count": 4,
+          "column_count": 3
+        }
+      },
+      "score": 4.8387,
+      "matched_terms": [
+        "owner",
+        "prepare",
+        "product",
+        "product owner",
+        "r2"
+      ]
+    },
+    {
+      "chunk": {
+        "chunk_id": "chunk-doc-20260611142119-76729744-3",
+        "document_id": "doc-20260611142119-76729744",
+        "document_title": "Test PEP Review Fixture",
+        "file_name": "g9-test-pep.md",
+        "section_id": "sec-4",
+        "section_title": "2 Reference",
+        "section_path": [
+          "Test PEP Review Fixture",
+          "2 Reference"
+        ],
+        "chunk_type": "section",
+        "text": "2 Reference The R2 review package shall cite the Product Owner responsibilities and the QMP deliverable source.",
+        "quote": "2 Reference The R2 review package shall cite the Product Owner responsibilities and the QMP deliverable source.",
+        "source_refs": [
+          {
+            "document_id": "doc-20260611142119-76729744",
+            "fragment_id": "frag-3",
+            "file_name": "g9-test-pep.md",
+            "section_id": "sec-4",
+            "section_title": "2 Reference",
+            "anchor_label": "L15-L15",
+            "anchors": {
+              "line_start": 15,
+              "line_end": 15,
+              "heading_path": [
+                "Test PEP Review Fixture",
+                "2 Reference"
+              ]
+            },
+            "quote": "The R2 review package shall cite the Product Owner responsibilities and the QMP deliverable source."
+          }
+        ],
+        "anchors": {
+          "line_start": 15,
+          "line_end": 15
+        },
+        "signals": [
+          "stage_r2",
+          "role_product_owner",
+          "deliverable_qmp"
+        ],
+        "metadata": {}
+      },
+      "score": 4.7619,
+      "matched_terms": [
+        "owner",
+        "product",
+        "product owner",
+        "r2"
+      ]
+    },
+    {
+      "chunk": {
+        "chunk_id": "chunk-doc-20260611142119-76729744-5",
+        "document_id": "doc-20260611142119-76729744",
+        "document_title": "Test PEP Review Fixture",
+        "file_name": "g9-test-pep.md",
+        "section_id": "sec-7",
+        "section_title": "5.3 R3 Verification",
+        "section_path": [
+          "Test PEP Review Fixture",
+          "5 Process and Requirement",
+          "5.3 R3 Verification"
+        ],
+        "chunk_type": "section",
+        "text": "5.3 R3 Verification During R3, the Project Manager shall confirm verification evidence and follow up open issues.",
+        "quote": "5.3 R3 Verification During R3, the Project Manager shall confirm verification evidence and follow up open issues.",
+        "source_refs": [
+          {
+            "document_id": "doc-20260611142119-76729744",
+            "fragment_id": "frag-6",
+            "file_name": "g9-test-pep.md",
+            "section_id": "sec-7",
+            "section_title": "5.3 R3 Verification",
+            "anchor_label": "L30-L30",
+            "anchors": {
+              "line_start": 30,
+              "line_end": 30,
+              "heading_path": [
+                "Test PEP Review Fixture",
+                "5 Process and Requirement",
+                "5.3 R3 Verification"
+              ]
+            },
+            "quote": "During R3, the Project Manager shall confirm verification evidence and follow up open issues."
+          }
+        ],
+        "anchors": {
+          "line_start": 30,
+          "line_end": 30
+        },
+        "signals": [
+          "stage_r3"
+        ],
+        "metadata": {}
+      },
+      "score": 3.125,
+      "matched_terms": [
+        "during"
+      ]
+    },
+    {
+      "chunk": {
+        "chunk_id": "chunk-doc-20260611142119-76729744-1",
+        "document_id": "doc-20260611142119-76729744",
+        "document_title": "Test PEP Review Fixture",
+        "file_name": "g9-test-pep.md",
+        "section_id": "sec-2",
+        "section_title": "0 History",
+        "section_path": [
+          "Test PEP Review Fixture",
+          "0 History"
+        ],
+        "chunk_type": "section",
+        "text": "0 History | Nr. | Page | Version | Change description | CR No. | | --- | --- | --- | --- | --- | | 1 | All | 01 | Initial release | CR-001 |",
+        "quote": "0 History | Nr. | Page | Version | Change description | CR No. | | --- | --- | --- | --- | --- | | 1 | All | 01 | Initial release | CR-001 |",
+        "source_refs": [
+          {
+            "document_id": "doc-20260611142119-76729744",
+            "fragment_id": "frag-1",
+            "file_name": "g9-test-pep.md",
+            "section_id": "sec-2",
+            "section_title": "0 History",
+            "anchor_label": "L5-L7",
+            "anchors": {
+              "line_start": 5,
+              "line_end": 7,
+              "heading_path": [
+                "Test PEP Review Fixture",
+                "0 History"
+              ]
+            },
+            "quote": "| Nr. | Page | Version | Change description | CR No. | | --- | --- | --- | --- | --- | | 1 | All | 01 | Initial release | CR-001 |"
+          }
+        ],
+        "anchors": {
+          "line_start": 5,
+          "line_end": 7
+        },
+        "signals": [
+          "document_history"
+        ],
+        "metadata": {}
+      },
+      "score": 1.5385,
+      "matched_terms": []
+    }
+  ],
+  "evidence_coverage": {
+    "documents": [
+      "doc-20260611142119-76729744"
+    ],
+    "sections": [
+      "sec-2",
+      "sec-4",
+      "sec-6",
+      "sec-7"
+    ],
+    "hit_count": 5
+  },
+  "trace": [
+    "hybrid retriever fanout: rule_section, full_text, vector",
+    "scoped_section_retrieval: 5 hits",
+    "full_text_retrieval: 4 hits",
+    "vector_retrieval: 3 hits",
+    "rrf fusion combined 12 backend hits"
+  ]
+}

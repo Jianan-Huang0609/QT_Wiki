@@ -125,6 +125,7 @@ class ChatQueryRequest(BaseModel):
     """聊天查询请求"""
     question: str = Field(..., min_length=1, max_length=500, description="问题内容")
     use_llm: bool = Field(default=False, description="是否使用LLM")
+    model_profile: str = Field(default="azure-gpt-5.4", max_length=80, description="LLM模型配置profile")
     top_k_pages: int = Field(default=5, ge=1, le=20, description="返回页面数量")
     top_k_citations: int = Field(default=8, ge=1, le=50, description="返回引用数量")
 
@@ -134,6 +135,35 @@ class ChatQueryRequest(BaseModel):
         v = v.strip()
         if len(v) < 2:
             raise ValueError("问题至少需要2个字符")
+        return v
+
+
+class SessionQueryRequest(BaseModel):
+    """Session-scoped chat query request."""
+
+    question: str = Field(..., min_length=1, max_length=500, description="问题内容")
+    source_scope: dict[str, Any] = Field(default_factory=lambda: {"mode": "selected_docs", "document_ids": []})
+    use_llm: bool = Field(default=False, description="是否使用LLM")
+    model_profile: str = Field(default="azure-gpt-5.4", max_length=80, description="LLM模型配置profile")
+    top_k: int = Field(default=8, ge=1, le=30, description="检索 chunk 数量")
+    top_k_citations: int = Field(default=8, ge=1, le=50, description="返回引用数量")
+
+    @field_validator("question")
+    @classmethod
+    def validate_question(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("问题至少需要2个字符")
+        return v
+
+    @field_validator("source_scope")
+    @classmethod
+    def validate_source_scope(cls, v: dict[str, Any]) -> dict[str, Any]:
+        mode = str(v.get("mode", "selected_docs"))
+        if mode not in {"selected_docs", "all_sources"}:
+            raise ValueError("source_scope.mode 只支持 selected_docs 或 all_sources")
+        if mode == "selected_docs" and not v.get("document_ids"):
+            raise ValueError("selected_docs 需要 document_ids")
         return v
 
 
@@ -271,6 +301,28 @@ class CitationPayload(BaseModel):
     quote: str = Field(default="", max_length=2000)
     document_id: str = Field(..., min_length=1)
     fragment_id: str | None = Field(None)
+    section_id: str | None = Field(None)
+    evidence_id: str | None = Field(None)
+    anchors: dict[str, Any] = Field(default_factory=dict)
+    source_context: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnswerRunStepPayload(BaseModel):
+    """六环回答步骤负载"""
+    step_id: str = Field(..., min_length=1)
+    label: str = Field(..., min_length=1)
+    status: Literal["waiting", "running", "done", "warning", "deferred"] = Field(default="done")
+    summary: str = Field(default="")
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    outputs: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnswerRunPayload(BaseModel):
+    """Chat 六环处理环路负载"""
+    schema_version: str = Field(default="answer-run-v0.1")
+    run_id: str = Field(..., min_length=1)
+    loop: str = Field(default="input -> context -> planning -> execution -> generation -> memory")
+    steps: list[AnswerRunStepPayload] = Field(default_factory=list)
 
 
 class ChatQueryResponse(BaseModel):
@@ -283,3 +335,4 @@ class ChatQueryResponse(BaseModel):
     structured_matches: list[dict[str, Any]] = Field(default_factory=list)
     trace: list[str] = Field(default_factory=list)
     suggested_questions: list[str] = Field(default_factory=list)
+    answer_run: AnswerRunPayload | None = Field(default=None)

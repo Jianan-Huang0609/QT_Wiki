@@ -1,12 +1,106 @@
 # Session WIP
 
+## 2026-06-23 Update
+
+- 已完成 `CHAT-03`：新增 `Tool.workflows.route_catalog`，覆盖 Release-0 routes 和既有 `process_overview/table_lookup/gap_check/summary_request/definition_lookup` 等策略字段；`App.api` 的 route plan metadata、query rewrite、ToolPlan `route_strategy`、retrieval top_k、route rerank、AnswerPlan slots 和 answer shape 已从 catalog 读取。验证 `tests/test_route_catalog.py tests/test_app_api.py tests/test_answer_workflow.py tests/test_release0_smoke_cases.py tests/test_retriever_interface.py -q` 为 `49 passed, 1 warning`，`compileall` 与 `git diff --check` 通过。下一步按 TODO 做 `CHAT-04 generic_rag fallback + route evolution eval`。
+- 已完成 `BASE-01`：新增 `Tool.evals.release0_smoke`，固定 8 条 Release-0 smoke case，覆盖 CT / MI / XP 单文档、未知 fallback 和多文档对比；新增 [../review-artifacts/release0-smoke-failures.md](../review-artifacts/release0-smoke-failures.md) 作为失败记录入口；验证 `tests/test_release0_smoke_cases.py -q` 为 `2 passed`。
+- 用户确认当前开发顺序：先 `BASE-01` 固化 smoke 尺子，然后做 Chat 的 RouteCatalog、generic fallback、AnswerPlan 和 Claim Verifier。Parser 不先重构完整中间态，只做当前解析能力 smoke、轻量 `EvidenceSource adapter` 和文档/证据质量警告；完整 DocumentBlock/RAG artifacts 和 Docling/Marker/MinerU provider 评估放到 Later，由 smoke 失败类型触发。
+- 用户确认把 TODO 中的“为什么做”式说明改成更直接的“预期功能”。已重整 [../TODO.md](../TODO.md) 为 Release-0 可信 NotebookLM-like 问答闭环执行板，任务统一使用 `预期功能 / 最小方案 / 验收 / 来源`，并把 Parser、Chat、UI 三份 Spec 的关键工作映射到 `BASE / PARSER / CHAT / UI / R0 / Later` 主线。
+- 用户确认继续收敛 Chat Router / Planner 方向，并要求把设计判断写入当前 Spec，同时清理 Design 根目录：框架设计和策略解释放到模块 Spec，具体操作放到总 [../TODO.md](../TODO.md)。
+- 已把今天两轮判断写入 [../Spec-Chat-Workflow.md](../Spec-Chat-Workflow.md)：所有问题都经过统一 Router / Planner，但只有高频、高风险、反复失败或合规责任强的问题沉淀为 Route Catalog；未知/低置信问题进入 `generic_rag`，由 evidence/citation/claim verifier 守住边界。
+- 今日架构取舍已记录：避免“每个问题一个 route”的过度设计，也避免“全部交给 LLM”的粗糙设计。最小可持续框架是固定 8 步可信链路 + LLM 泛化理解 + 薄 RouteCatalog + deterministic guardrails + generic fallback + 失败样本驱动 route evolution eval。
+- 已把企业 NotebookLM-like RAG 的剩余能力缺口写入 Chat Spec：Session State / Follow-up、RouteCatalog 抽象、Generic RAG fallback eval、Claim Verifier、Route Evolution Loop、Table/Figure/Structured Block tools。
+- Design 目录已物理归档：旧 Gate / Plan / Review / 历史 Spec 从 Design 根目录移入 [../old/](../old/)；根目录保留 [../README.md](../README.md)、[../TODO.md](../TODO.md)、[../PRD-流程问答工作台.md](../PRD-流程问答工作台.md)、[../Spec-Parser-RAG.md](../Spec-Parser-RAG.md)、[../Spec-Chat-Workflow.md](../Spec-Chat-Workflow.md)、[../Spec-UI-Workspace.md](../Spec-UI-Workspace.md)。
+- 总 TODO 已重整执行项：已完成证据单独收纳，当前主线按 Release-0 验收基线、Parser/RAG 可信资料底座、Chat Runtime 可信回答骨架、UI Workspace 主体验、真实闭环 Smoke 和 Later backlog 排列。
+
+## 2026-06-22 Update
+
+- 用户反馈当前 Chat 面板里“思考摘要”格式混乱、像提前预设框架；回答质量仍偏章节级，缺具体内容总结和深入细节；同时前端仍默认 `azure-gpt-4o`。
+- 追加确认 GPT-5 系列调用问题：5.4 之前返回 401 的直接原因是 5.4/5.5 config 没有 key；`azure-gpt-5` 还缺 `config/azure_gpt5_config.json`；`gpt-5` 和 `gpt-5.5` 还不接受 `temperature=0.2/top_p=0.6`。
+- 已修复 GPT-5 系列调用层：新增 `config/azure_gpt5_config.json`；空 key 的 5.x config 会复用默认 Azure gateway key，同时环境变量仍优先；`Tool.llm.client` 对 `gpt-5` / `gpt-5.5` 省略 sampling 参数。真实 smoke 显示 `gpt-5.4`、`gpt-5.5` 可返回 `OK`，`gpt-5` 在提高 token 预算后返回 `OK`。
+- 已完成一个回答质量 quick slice：`App/api.py` 新增 `DEFAULT_MODEL_PROFILE = "azure-gpt-5.4"`，schema 和前端默认值同步切到 5.4；新增 `config/azure_gpt5_5_config.json` 和前端 `Azure GPT-5.5` 选项，未知 profile 回退 5.4。5.5 只是占位配置，真实调用仍需本地网关 deployment 和密钥配置可用。
+- LLM composer prompt 已改为直接回答用户问题，禁止固定“识别与路线 / References”栏目；prompt 现在包含 citation quote 与 `source_context` 的前文、命中上下文、后文，要求写具体动作、条件、交付物或评审依据，避免只罗列章节标题。
+- deterministic fallback 同步增厚：`process_operation` / `process_overview` 答案现在输出“具体做法 / 文档细节 / 可追溯位置”或“关键结论 / 具体含义 / 文档细节”，把相邻上下文合入文档细节，降低 LLM fallback 时的章节罗列感，并让文档细节句贴近 citation label。
+- 前端 `ChatThoughtDisclosure` 先前改为真实 answer_run timeline；本轮继续升级为 data-driven 执行摘要，读取 `query_rewrite/tool_plan/answer_plan` 动态展示“问题/资料范围/意图路由/检索改写/工具执行/证据组织/答案规划/生成与质量”，减少固定五段模板感。
+- 顺手修复运行态 dashboard 500 风险：`_ensure_runtime_ready()` 现在会捕获 wiki bootstrap 写入 `wiki/output/pages/*.json` 时的 `OSError/PermissionError`，避免 OneDrive 文件锁导致 `/api/dashboard` 直接 500。
+- 验证：`..\.venv\Scripts\python.exe -m pytest tests/test_answer_workflow.py tests/test_app_api.py tests/test_retriever_interface.py -q` 为 `43 passed, 1 warning`；`App/web npm run build` 通过；`git diff --check` 通过；相关 VS Code diagnostics 无错误。浏览器 smoke 确认默认显示 `Azure GPT-5.4`，下拉包含 `Azure GPT-5.5`；最新 `PEP 文档的流程如何操作？` 回答无旧“识别与路线 / 流程操作拆解 / References”栏目，正文含具体做法、文档细节和可追溯位置，折叠摘要含接收问题/锁定资料/判断路线/检索证据/生成回答 timeline。
+- 运行态注意：GPT-5 系列配置层已可真实调用；下一步需要用 Ask Workspace 的长 prompt 做真实质量 smoke，确认 5.4/5.5 在 citation-label 输出上稳定，不再因模型回答未带 `[c1]` 等标签触发 fallback。
+- 最新设计决策：用户确认 Chat Runtime 内部保留 8 步 contract，但 UI 不固定展示八块或固定五段模板；默认把空间让给回答正文和引用，展开区按本轮真实发生的 session state、intent、query rewrite、tool/evidence、citation validation、answer planner / claim check 动态摘要。
+- ToolPlan 定义已收敛：当前阶段不是先做 vector DB，而是先做 `ToolPlan v0.1`，基于现有 `section_search/fulltext/hybrid_retrieve/route_rerank/reference_context/evidence_package/citation_validation/composer` 输出 planned/executed/skipped/reason；vector/table/direct read/compare 在不适用或未启用时只在高级摘要里说明原因。
+- 下一步回答质量优先切片：优先做读取会话状态、Intent Router、结构化 Query Rewrite、ToolPlan v0.1 和 `AnswerPlanner slot map`；其中 AnswerPlanner 是减少章节罗列和泛泛总结的关键，优先级高于持久 vector DB。
+- 已执行回答质量首切片：`Tool.workflows.answer.parse_question_intent()` 新增 `table_lookup` / `summary_request`；`/api/session/query` 新增 `query-rewrite-v0.1`、`tool-plan-v0.1` 和 `answer-plan-v0.1` 并写入 `answer_run`；LLM prompt 现在消费 AnswerPlan slots。`process_operation` live smoke 中 route terms 包含 `operation steps/how to operate/workflow procedure/phase sequence`，ToolPlan executed 包含 section/fulltext/hybrid/route_rerank/evidence package，AnswerPlan 的 scope/operation/deliverables/verification 四个 slot 均 filled 且绑定 citation。
+- 回答输出格式小修：新增 `answer-style-v0.1`，把“证据如何组织”与“chatbox 如何阅读”分开；LLM prompt 要求短结论、自然段落、必要时连续编号，deterministic fallback 也从嵌套 bullet 改为连续编号段落；前端 `RichAnswer` 保留 ordered list 的原始起始编号，避免视觉上反复从 1 开始。
+- 验证：`tests/test_config.py tests/test_llm_compat.py tests/test_answer_workflow.py tests/test_app_api.py tests/test_retriever_interface.py -q` 为 `64 passed, 1 warning`；`App/web npm run build` 通过；`git diff --check` 通过；live `/api/session/query` 中文问题返回 `route=process_operation`、8 条 citation、新 `query_rewrite/tool_plan/answer_plan` 字段。
+- 追加验证：answer-style 窄测 `tests/test_app_api.py::test_session_query_uses_selected_pep_chunks_for_process_question tests/test_app_api.py::test_process_overview_fallback_uses_evidence_details_without_fixed_framework -q` 为 `2 passed, 1 warning`；`tests/test_app_api.py tests/test_answer_workflow.py -q` 为 `38 passed, 1 warning`；`App/web npm run build` 和 `git diff --check` 通过。
+- 继续按用户给出的三条真实问题补齐 Chat route：`R4到R5之间需要完成哪些工作？` 进入 `stage_transition_work`，`QMP需要包含哪些内容？谁负责撰写QMP？` 进入 `deliverable_detail`，`采用敏捷方法开发，可以裁剪哪些评审？哪些评审不可被裁剪？` 进入 `tailoring_policy`。新增 route-specific Query Rewrite、retrieval top_k、evidence bonus、AnswerPlan slot shape 和 AnswerStyle。验证 `tests/test_answer_workflow.py tests/test_app_api.py -q` 为 `39 passed, 1 warning`。
+- 同步收窄 Ask Workspace UI：左侧 Sources 改成干净可勾选 source list，勾选项作为本轮 `selected_docs` source scope；点击文件名只切换预览 source。右侧 Reference 移除主视图里的 Session Note/Admin，保留“当前原文”和“本轮返回”两段 quote 列表，Reference Card 仍可展开定位和前后文。前端验证 `npm --prefix App/web run build` 通过。
+- 进一步设计收敛：用户倾向“直接利用 LLM 泛化能力做 Router/Planner，但保留系统边界”。已更新 [../Spec-Chat-Workflow.md](../Spec-Chat-Workflow.md) 和 [../TODO.md](../TODO.md)：统一 runtime 保留 8 步；LLM 输出结构化 `intent-route-v0.2` 与 `answer-plan-v0.2`；Route Catalog 只提供高频/高风险问题的轻量策略；未知问题进入 `generic_rag`；程序负责 source scope、citation、quote、anchor、missing evidence 和 claim verifier。
+- 下一步实现建议：先抽轻量 `RouteCatalog` 数据结构和 LLM Router schema，不急着继续新增 route 函数；然后把现有 `query-rewrite-v0.1/tool-plan-v0.1/answer-plan-v0.1` 映射到新的 schema，补 `generic_rag` fallback eval。
+
+## 2026-06-18 Update
+
+- 已按用户反馈修正 Ask Workspace Chat 思考展示：删除固定 Answer Run / 1-6 步全局 UI，保留后端 answer_run 数据，但只在对应 assistant 消息内显示可展开“思考摘要”。运行中会先出现“正在思考”气泡；完成后摘要默认收起，用户可展开查看 route、source、工具、citation validation 和生成摘要。
+- 前端文案已移除用户可见的 `Answer Run`；折叠摘要改为自然语言，如“流程操作路线 · 7 条引用已校验 · 证据链已装配”。`npm run dev` 已用 package script 正确启动在 `http://127.0.0.1:5173/`，后端在 `http://127.0.0.1:8000/`。
+- 验证证据：`App/web npm run build` 通过；VS Code diagnostics 无错误；浏览器 smoke 对“PEP 文档的流程如何操作？”确认固定 Answer Run DOM 为 0、可见文案无 `Answer Run`、assistant 消息内有 1 个 `chat-thought-disclosure`、完成态默认收起、结构化回答和 8 条 Reference Card 正常显示。
+- 已继续按用户反馈细化思考颗粒度与引用形态：后端 `answer_run` execution 输出 `evidence_preview`，generation 输出 `self_check`；前端思考摘要重排为问题界定、source、意图路线、检索改写、候选证据、引用校验和完整性自检。正文 citation 改成 `c1/c2` 小标，点击后右侧 Reference 展开；右侧 Reference 标题改为 `cN · 页码/锚点 · 章节`，文件名放到 metadata。`process_operation` answer 不再在正文输出 References 文件列表，默认最多使用 7 条已过滤操作证据。
+- 追加验证证据：`..\.venv\Scripts\python.exe -m pytest tests/test_answer_workflow.py tests/test_app_api.py tests/test_retriever_interface.py -q` 为 `40 passed, 1 warning`；`App/web npm run build` 通过；浏览器 smoke 确认 inline citation label 为短小标、无长文件名、无 `References` heading，思考摘要有 self-check 和 evidence preview，Reference Card 展开正常。
+- 已明确当前 RAG 后端实操边界：Ask Workspace `/api/session/query` 读取 `Tool/output/parsed/{document_id}.json` 的 canonical document，运行时生成 section chunks，并用 `HybridRetriever([RuleSectionRetriever, FullTextRetriever])` + route rerank + evidence package + citation validation 执行 selected-doc RAG；当前尚未使用持久化向量数据库，`VectorRetriever` 只是可注入能力和测试接口。
+- 当前继续执行 TODO 的下一片定为 Direct source/reference context：先让 citation payload 带同文档相邻 chunk / section excerpt 的 bounded 前后文，Reference Viewer 可展开核查；随后再做 persistent chunk index、真实 vector store、retrieval eval 和 answer planner。
+- 已完成 Direct source/reference context 首切片：`CitationPayload` 增加 `source_context`；`/api/session/query` 在 citation validation 后基于本轮 selected-doc chunks 装配 `context_before/context_text/context_after/chunk_id/section_id/anchor_label`；前端 Reference Viewer 展示“引用前文 / 命中上下文 / 引用后文”。验证：窄测 `tests/test_app_api.py -k "session_query_uses_selected_pep_chunks_for_process_question" -q` 为 `1 passed`；主线后端 `tests/test_answer_workflow.py tests/test_app_api.py tests/test_retriever_interface.py -q` 为 `40 passed, 1 warning`；`App/web npm run build` 通过；重启后端后浏览器 smoke 对 MI PEP 确认 7 条 citation 全部带 source_context，DOM 出现前文/命中/后文区域。
+- 已把用户提出的专业化 Chat Runtime 八步链路写入 [../Spec-Chat-Workflow.md](../Spec-Chat-Workflow.md)：`Receive Input -> Read Session State -> Intent Router -> Query Rewrite -> Tool Plan -> Evidence Package -> Answer Planner -> Claim Verifier + UI`。当前 gap 判断约 5/8 可用：已具备 selected-doc input、首批 intent route、query rewrite 字符串、hybrid retrieval、evidence package、citation/source_context 和 UI 摘要；主要缺 session state/follow-up、正式 ToolPlan、AnswerPlanner slot map、Claim Verifier report。
+
+## 2026-06-17 Update
+
+- 已按用户要求收敛 Design 开发文档：当前执行入口改为 [../TODO.md](../TODO.md)，只保留系统级 checkbox-first 开发任务；模块级设计路线拆成 [../Spec-Parser-RAG.md](../Spec-Parser-RAG.md)、[../Spec-Chat-Workflow.md](../Spec-Chat-Workflow.md)、[../Spec-UI-Workspace.md](../Spec-UI-Workspace.md)。
+- 旧文档处理策略已写入 [../README.md](../README.md)：[../PRD-流程问答工作台.md](../PRD-流程问答工作台.md) 保留为产品定义；G9/Gate3 保留为证据包；Gate6/MultiInput/Parser-Evals/Pro-Input 等内容已被新 Spec 吸收，原文件降级为历史附件。
+- 这次先做软整理，没有移动或删除旧附件，避免链接断裂。后续如用户确认，可单独做 `DOC-02 物理归档历史附件`，把历史 plan/review/notes 移到 `Design/archive/` 或 `Design/review-artifacts/` 并批量更新链接。
+- 已根据 reviewer 讨论和用户新反馈优化 [../TODO.md](../TODO.md) 与三份 Spec：新增 `Phase A.5 Release-0 可信问答纵向闭环`，把优先级调整为 citation/source scope 可信、Notebook-like 自动解析状态、文件级 Source/Tree、CT/MI/XP 真实 PEP smoke。
+- 最新产品约束：parser 默认自动解析并进入 session source，人审只处理低置信 block/table/visual candidate；Ask Workspace 左侧只展示文件级 source card，不按章节展开；Chat 优先修引用、意图识别、route、tool calls、Answer Run 摘要和 grounded answer。
+- 已完成 `CHAT-00 Citation integrity hotfix` 的后端切片：新增回归测试覆盖 selected-doc scope 外证据、缺 anchor 证据、缺 quote 证据被过滤，以及同一 source anchor 下不同 quote 使用不同 citation label；`/api/session/query` 现在把 citation validation 写入 answer_run execution step，deterministic answer 只基于 validated citations 生成。
+- 已接入 `CHAT-05 LLM Answer Composer` 的首个可用切片：`/api/session/query` 支持 `model_profile`，`use_llm=true` 时会把 validated citations 组成受控 prompt 调用 LLM；如果 LLM 没带 `[c1]` 等引用标签或调用失败，会回退 evidence-first answer。前端模型下拉已传入 session/wiki query，并新增 `Azure GPT-5.4` 选项。
+- 新增 `config/azure_gpt5_4_config.json`，作为 GPT-5.4/Azure 5.4 部署占位配置；文件不包含新密钥，真实运行需通过环境变量或本地安全配置提供 key，并确认网关 deployment 名是否确实为 `gpt-5.4`。
+- 已同步 [../Spec-Parser-RAG.md](../Spec-Parser-RAG.md)：补齐 Parser-to-Markdown contract、`document.md/blocks.json/chunks.json/quality_report.json` artifact 边界、MarkItDown / Docling / Marker / MinerU / RAGFlow / SurfSense / Open Notebook 融合矩阵，以及 CT/MI/XP PEP 样例验收路径。
+- 最新验证证据：`..\.venv\Scripts\python.exe -m pytest tests/test_app_api.py -k "session_citations_filter or quote_specific or session_query_uses_selected" -q` 为 `3 passed`；`..\.venv\Scripts\python.exe -m pytest tests/test_app_api.py -q` 为 `18 passed`；全量后端 `..\.venv\Scripts\python.exe -m pytest -q` 为 `138 passed`。
+- LLM composer 追加验证：`..\.venv\Scripts\python.exe -m pytest tests/test_app_api.py -k "session_query_can_use_selected_llm_model_profile or session_query_uses_selected or session_citations_filter or quote_specific" -q` 为 `4 passed`；`..\.venv\Scripts\python.exe -m pytest tests/test_app_api.py tests/test_llm_compat.py -q` 为 `27 passed`；`App/web npm run build` 通过。
+- 已完成 route-aware process overview 与 reference quote 质量修复：`PEP 文档的流程如何操作？` 会进入 `process_overview` route，检索优先 Purpose/Scope、V-model、General requirements 和阶段主干；Answer Run execution 输出真实 `parse_question_intent -> retrieve_sections -> prioritize_process_overview_evidence -> build_answer_evidence_package -> validate_citations -> answer` 工具链；`AnswerEvidencePackage` 现在优先使用 chunk-level 正文 quote，Reference Card 不再只显示章节标题。
+- 前端 Answer Run timeline 已补 route、retrieval query、tools、citation validation、model profile 等元信息，用户能看到可审计的流程摘要，但仍不展示逐字内部思维链。
+- 最新验证证据追加：`..\.venv\Scripts\python.exe -m pytest tests/test_answer_workflow.py tests/test_app_api.py -q` 为 `27 passed`；`App/web npm run build` 通过；XP PEP 真实 smoke 返回 p.16 General requirements、p.6 Purpose/scope、p.9 V-model 的正文级引用。
+- 根据用户 NotebookLM-like 反馈继续收窄 Chat 主体验：Answer Run 已默认折叠为一行 summary，避免 1-6 步占用 Chat 主区域；`process_operation` route 已把“流程如何操作/怎么做”从泛流程总览中拆出，deterministic fallback 会按操作主线组织答案；`AnswerEvidencePackage` 新增 passage selector，优先返回与问题命中词相关的原文片段。
+- 最新验证证据追加：`..\.venv\Scripts\python.exe -m pytest tests/test_answer_workflow.py tests/test_app_api.py -q` 为 `29 passed`；`App/web npm run build` 通过；XP PEP in-process smoke 对“PEP 文档的流程如何操作？”返回 `route_id=process_operation`，工具链包含 `prioritize_process_operation_evidence`，引用命中 p.6/p.9/p.16/p.49/p.58。
+- 已按用户提醒完成 API prompt 泛化：`App/api.py` 中 route summary、retrieval expansion、LLM prompt、fallback answer、source label 和默认推荐问题不再默认绑定 PEP，改用当前文档/流程文档通用口径；`SOP 文档的流程如何操作？` smoke 中 retrieval question 不含 `pep`，真实 XP PEP smoke 仍返回 `process_operation`。
+- 最新验证证据追加：`..\.venv\Scripts\python.exe -m pytest tests/test_answer_workflow.py tests/test_app_api.py -q` 为 `30 passed`；`App/web npm run build` 通过。
+- 已完成 Session Query HybridRetriever 首切片和 passage 噪音治理：`/api/session/query` 现在通过 `HybridRetriever([RuleSectionRetriever, FullTextRetriever])` 执行，Answer Run execution tool_calls 返回 `hybrid_retrieve_sections`；`process_operation` route 下调 country-specific approval / market access 局部专题，避免泛流程问题被审批章节抢占；passage selector 会惩罚表格碎片并清理重复章节标题。
+- 最新验证证据追加：`..\.venv\Scripts\python.exe -m pytest tests/test_answer_workflow.py tests/test_app_api.py tests/test_retriever_interface.py -q` 为 `38 passed, 1 warning`；`App/web npm run build` 通过；XP PEP in-process smoke 对“PEP 文档的流程如何操作？”返回 `route_id=process_operation`，tool_calls 包含 `hybrid_retrieve_sections`，前 5 引用为 p.6 Purpose/scope、p.9 V-model、p.16 General requirements、p.49/p.50 Design validation，quote 已清掉标题重复和表格碎片。
+- 已按用户反馈改造 Chat 展示体验：前端 Answer Run 从折叠卡片改为渐进式可审计链路摘要，显示 route、工具目的、证据数量、citation validation 和 composer；`RichAnswer` 支持标题/列表/inline citation 结构化渲染，避免裸露 `**...**` Markdown；Reference Card 支持展开 quote、文件、章节、fragment 和 anchors。
+- 同步强化 `process_operation` 答案颗粒度：fallback answer 现在拆成“步骤 / 操作要点 / 原文依据”；检索 rerank 下调 Labeling / China RoHS / Product Scope 等局部合规噪音，operation answer 跳过标题式 evidence，并把 design input / design output 拆成更具体步骤。最新验证：`..\.venv\Scripts\python.exe -m pytest tests/test_answer_workflow.py tests/test_app_api.py tests/test_retriever_interface.py -q` 为 `40 passed, 1 warning`；`App/web npm run build` 通过；localhost MI PEP 浏览器 smoke 显示 `hybrid_retrieve_sections` 链路、8 个可展开 Reference、无裸露 `**...**` Markdown、无 Labeling/RoHS 噪音。
+- 下一步建议继续 [../TODO.md](../TODO.md) 的 `R0-05 CT / MI / XP 真实 PEP 闭环 smoke`，用真实 selected-doc 切换验证 citation 卡、answer_run、Reference UI；随后进入 `PARSER-01/02` 的 DocumentBlock + Markdown artifact 实现。
+
+## 2026-06-12 Update
+
+- 已融合用户提供的 `Chatbox 交互系统 — 六环统一架构 v0.1`：本项目不另起一套 Chat 系统，直接把六环作为 Ask Workspace 主链路 contract 落到 `/api/session/query` 的 `answer_run-v0.1`。当前六步为 input/context/planning/execution/generation/memory；第 6 环先标记 `deferred`，连接前端 Session Note pin-ready，后续再接持久化 session memory、tool registry 和 function calling。
+- 已修复“UI 端不能问新的问题”的核心路径：Chat transcript 从单条 active entry 改为多轮追加；composer 支持 form submit、Enter 和 pointer fallback；窄屏/VS Code 嵌入浏览器下 Chat 面板固定为视口高，内部 transcript 滚动，composer 保持在面板底部，推荐问题改为横向滚动 chip 行。
+- 最新验证证据更新：`tests/test_app_api.py -k session_query -q` 通过并覆盖 `answer_run-v0.1` 六步；运行态 API smoke 返回 `input,context,planning,execution,generation,memory` 且 memory 为 `deferred`；`App/web npm run build` 通过；localhost `http://127.0.0.1:5173/` 窄屏浏览器 smoke 等待 handoff 后连续两问均命中 `/api/session/query`，页面显示两轮 user/assistant 消息和后端六环状态。
+- 最新 UI 反馈已记录：用户明确指出“审阅和 chat 不应混在一起”、当前板块过多且很乱、Chat 回答缺少 `用户输入 -> 输入 -> 上下文装配 -> 推理规划 -> 执行 -> 生成 -> 记忆回写` 的完整能力、Reference `C1/C2` 不可读且需要定位到具体文章内容、左侧 Source 应展示三份 PEP 原文件名而不是章节粒度。该反馈已转为 P0-03 C 路线设计约束。
+- 用户确认下一步：先做好 C 路线 vertical slice，即 `Ask Workspace v1`；同时把前置 UI 框架思考写入 [../TODO.md](../TODO.md) 和历史规格 [../old/Todo+Spec-流程问答工作台.md](../old/Todo+Spec-流程问答工作台.md)。目标四页框架仍是 `Source Intake -> Review Gate -> Ask Workspace -> Admin / JSON Lab`，当前优先实现 Ask Workspace 中的文件级 Source、Chat/Review 分离、六步 Answer Run、可读 Reference Card 和 Note pin。
+- 已完成 `Ask Workspace v1` 首版：左侧 Source 强制文件级 CT/MI/XP；中间移除 Review Queue 和旧 Evidence/Trace 侧栏，保留 Chat transcript、Answer Run、底部 composer；右侧改成 Reference Viewer + Session Note；inline citation 和 Reference Card 使用文件名/页码/quote，不再展示 `c1/c2` 作为主要阅读对象；Session Note 支持 Pin answer / Pin ref 前端状态。
+- 后端顺手修复 session suggested questions 的 source label：优先使用 canonical `file_name`，避免 parser title 被误判为 `0 History / 修改历史` 时污染推荐问题。回归测试已覆盖该场景。
+- 最新验证证据：`App/web npm run build` 通过；`tests/test_app_api.py -k session_query -q` 为 `1 passed, 15 deselected`；`git diff --check` 通过；localhost 当前前端在 `http://127.0.0.1:5174/`，后端在 `http://127.0.0.1:8000`，浏览器 smoke 已确认 MI PEP 问“PEP 文档的流程如何操作？”后 Answer Run 六步完成、5 条可读 Reference Card 返回、推荐问题使用 `20260611163304-MI PEP AND 308 11.pdf` 文件名。
+- 记录策略已确认：带跳转链接、开发上下文、当前未完成状态和下一步建议写在本文件；[../../CHANGELOG.md](../../CHANGELOG.md) 保持精简，只记录日期级决策与验证结果；[../TODO.md](../TODO.md) 仍是唯一执行入口；历史 [../old/Todo+Spec-流程问答工作台.md](../old/Todo+Spec-流程问答工作台.md) 保存早期 Session MVP 的计划和验收口径。
+- 用户认可下一步建议：继续开发从 P0-A / P0-01 开始，先完成真实后端 Session Query selected-doc 闭环，再接前端 Chat，随后拆 UI 用户操作逻辑为 Source Intake / Review Gate / Ask Workspace / Admin JSON Lab。
+- 已更新 [../old/Todo+Spec-流程问答工作台.md](../old/Todo+Spec-流程问答工作台.md) 的 P0 继续开发切片：P0-01 Session Query API、P0-02 Frontend Chat 接入、P0-03 UI 拆页、P0-04 Real PEP Smoke Evidence。
+- 已完成 P0-01/P0-02 首个实现切片：`tests/test_app_api.py -k session_query` 通过；`/api/session/query` 可按 selected document 加载 canonical/chunks 并返回 `ChatQueryResponse`；前端新增 `querySession()`，主 Chat 在存在当前 `sessionHandoff.chat.source_scope` 或 active document 时优先调用 session query，旧 `/chat/query` 只作为无 session source fallback。
+- 真实 PEP API smoke：CT `doc-20260611163219-f56c6cf9`、MI `doc-20260611163304-4cbf18e4`、XP `doc-20260611163330-ea3c2cc8` 对“PEP 文档的流程如何操作？”均返回 200，citation document_id/file_name 均来自当前 selected PEP；“R2 阶段 PO 应该做什么？”也能保持 selected-doc scope，但命中仍偏泛流程/R2 section，后续需要 semantic signals / rerank 强化角色类问题。
+- localhost 浏览器 smoke：后端 `http://127.0.0.1:8000`、前端 `http://127.0.0.1:5173` 已同时跑通；浏览器里 MI `doc-20260611163304-4cbf18e4`、XP `doc-20260611163330-ea3c2cc8`、CT `doc-20260611163219-f56c6cf9` 均能加载 handoff 并由 Chat 调用 `/api/session/query`，evidence panel 显示当前 PEP citation、selected-doc trace 和 `answer evidence package built`。
+- UI 可用性修补：左侧 Source card 已从静态 article 改为可点击按钮，可直接切换当前 PEP；这只是支持三份 PEP 本地 smoke 的小修补，完整 UI/用户操作逻辑拆页仍是下一步 P0-03。
+- 验证证据：`App/web npm run build` 通过；`tests/test_app_api.py -q` 为 `16 passed`；全量 `pytest -q` 为 `136 passed`；`git diff --check` 通过；浏览器 screenshot 已显示 CT PEP selected-doc query 结果和 evidence trace。
+
 ## 2026-06-10
 
 ### 2026-06-11 Update
 
-- 已新增并重写 [../Tool-Parser-RAG-Fusion-Spec.md](../Tool-Parser-RAG-Fusion-Spec.md)，把 G9 调整为 QT Parser Core provider fusion：pypdf、DOCX XML、Docling、OCR/VLM 都作为内部 extraction providers，由 fusion layer、PEP structure resolver、canonical/evidence contract 和 eval gate 产出统一结果。
+- 已新增并重写 [../old/Tool-Parser-RAG-Fusion-Spec.md](../old/Tool-Parser-RAG-Fusion-Spec.md)，把 G9 调整为 QT Parser Core provider fusion：pypdf、DOCX XML、Docling、OCR/VLM 都作为内部 extraction providers，由 fusion layer、PEP structure resolver、canonical/evidence contract 和 eval gate 产出统一结果。
 - 已更新 [../TODO.md](../TODO.md)：当前焦点从直接继续 G8 UI 调整为先做 Phase 3.5 / G9 QT Parser Core，再回到 v0.4 UI/contract、真实 Tree + Chat flow 和 Graph MVP。
-- 已更新 [../Todo+Spec-流程问答工作台.md](../Todo+Spec-流程问答工作台.md)：Session MVP 的 Phase 2 明确依赖 Tool Parser Core Spec，前端 Tree/Graph/Chat 需要消费真实 Tool contract。
+- 已更新 [../old/Todo+Spec-流程问答工作台.md](../old/Todo+Spec-流程问答工作台.md)：Session MVP 的 Phase 2 明确依赖 Tool Parser Core Spec，前端 Tree/Graph/Chat 需要消费真实 Tool contract。
 - 本轮继续开发已完成 G9-01 Parser Fusion Core Contract：新增 `Tool/parsers/fusion.py`、`tests/test_parser_fusion_contract.py`，并让 `apply_parse_workflow_contract()` 自动写入默认 `parser_fusion` metadata；完整后端验证 `116 passed`。
 - 已完成 G9-02 Docling Provider Integration：新增 lazy import + injectable converter 的 Docling provider，把 Docling-like text/layout/table/picture 信息映射为 QT fusion blocks/candidates，并生成 `docling_provider_extraction` metadata；真实 Docling 依赖待单独确认后加入 requirements；完整后端验证 `119 passed`。
 - 已完成 G9-03 PDF Fusion Pipeline：新增 `Tool/parsers/pdf_fusion.py`、`tests/test_pdf_fusion_pipeline.py`，把 pypdf canonical fragments 与 Docling layout/text/table/visual output 融合为 `parser_fusion` metadata；`FusionDecision` 记录 page/text 对齐、bbox/reading_order anchor 增强和 table/visual provider contribution；现有 `parse_pdf()` 主路径保持稳定，完整后端验证 `121 passed`。
@@ -15,11 +109,17 @@
 - 已完成 G9-06 Retriever Interface + Hybrid RAG：新增 `Tool/retrieval/retrievers.py`、`tests/test_retriever_interface.py`，把现有 `retrieve_sections()` 包成 `RuleSectionRetriever` baseline，并新增 `FullTextRetriever`、可注入 embedding 的 `VectorRetriever`、deterministic RRF `HybridRetriever`；`evaluate_retrieval_cases()` 可接收 pluggable retriever；完整后端验证 `131 passed`。
 - 已完成 G9-07 Fusion / Retrieval / Answer Eval 扩展：新增 `Tool/evals/fusion_eval.py`、`Tool/evals/answer_eval.py`、`tests/test_g9_eval_extensions.py`，并扩展 `Tool/evals/retrieval_eval.py` 的 backend comparison；当前可将 provider contribution、low-confidence fusion decisions、retrieval backend miss、missing citation、unsupported claims 和 evidence gap 未提示风险写入 findings；完整后端验证 `134 passed`。
 - 已完成 G9-08 Session API Handoff：新增 `/api/session/handoff/{document_id}` 和 API contract test，基于 canonical sections/chunks/parse_workflow 输出 source summary、真实 section tree、chunk/signal graph seeds、retrieval preview、chat source_scope/request/answer contract 和 quality gates；完整后端验证 `135 passed`。
+- 已切到 Phase 5 / G8 Evidence Review Workspace：更新 [../TODO.md](../TODO.md) 的 G8-08 设计与首批 TODO，并实现 G8-08A-C。前端新增 `SessionHandoff` 类型和 `getSessionHandoff()` API client，左侧 Sources/Tree/Graph 消费真实 handoff，中间新增 Review Queue，右侧新增 Quality / JSON / Notes 最小面板；`App/web npm run build` 通过。
+- 已修复本地 UI 运行链路：后端需从 [../../](../../) 执行 `..\.venv\Scripts\python.exe -m uvicorn App.api:app --host 127.0.0.1 --port 8000`，前端 Vite 代理才能访问 `/api/*` 与 `/chat/query`；当前 `/health`、前端代理 dashboard、handoff 和 LLM/规则 chat smoke 均通过。
+- 已改造 Chat 当前切片：中间 Chat 由旧 composer/card 布局改为 NotebookLM 式消息流 + evidence/context/trace 侧栏 + 底部 composer；citation、selected source refs 和 handoff retrieval preview chunks 可在 Chat 内核查。多轮 transcript append、pin to Notes 和正式 Evidence Card / Source Anchor Card 仍是下一步。
+- 已用当前三份 PEP PDF 真实跑 `/agent/upload`：CT `doc-20260611163219-f56c6cf9` 为 105 sections / 134 chunks / 2 visual candidates，MI `doc-20260611163304-4cbf18e4` 为 75 sections / 84 chunks / 1 visual candidate，XP `doc-20260611163330-ea3c2cc8` 为 114 sections / 144 chunks / 5 visual candidates；三者均 `needs_review`、eval `pass 3 / warn 2 / fail 0`，handoff 可返回。
+- 已确认当前可测范围与后端缺口：G8 Evidence Review Workspace 可本地测真实 PEP 的 Source/Tree/Review Queue/Quality/JSON/Chat evidence preview；主 Chat `/chat/query` 仍是 wiki-first 且不接收 `source_scope/document_ids`，下一步应做 Session Query API，把 selected-doc retrieval + AnswerEvidencePackage 接到 Chat transcript。
+- 已按用户反馈重排 [../TODO.md](../TODO.md) 的 Phase 5 P0：先做后端真实 Session Query selected-doc 闭环，再拆 UI/用户操作逻辑。目标页面顺序为 Source Intake -> Review Gate -> Ask Workspace -> Admin / JSON Lab。当前已有 `/api/session/query` 代码与红灯测试 WIP，尚需跑通测试、接前端并做真实 PEP 浏览器 smoke。
 
 ### Done
 
 - 新增 vNext PRD: [../PRD-流程问答工作台.md](../PRD-流程问答工作台.md)。
-- 新增 Todo + Spec: [../Todo+Spec-流程问答工作台.md](../Todo+Spec-流程问答工作台.md)。
+- 新增 Todo + Spec: [../old/Todo+Spec-流程问答工作台.md](../old/Todo+Spec-流程问答工作台.md)。
 - 在 [../../QT-Wiki-功能文档.md](../../QT-Wiki-功能文档.md) 顶部补充 vNext 产品收敛说明。
 - 在 [../../CHANGELOG.md](../../CHANGELOG.md) 记录 vNext PRD 与计划文档更新。
 - 旧设计内容已归档到 [../old/](../old/)，当前没有删除旧稿。
@@ -39,14 +139,14 @@
 - 已实现 Parser Quality Eval MVP：开发过程中的静态质量用诊断/测试/审查守门，动态内容质量已覆盖抓取缺口、章节漂移、复杂表格/图片风险和 LLM 输出缺证据；最终验证 `89 passed`。
 - 已实现 Gate 3 PDF/DOCX Chapterization MVP：DOCX 按 XML 元素顺序解析并吸收 Heading 样式、compact 编号标题和字母子标题；PDF 支持 R 阶段标题、重复页眉清理和 `heading_path` anchors；最终验证 `92 passed`。
 - 已完成 Gate 3 PEP smoke 检查机制补强：CT / MI / XP PEP 自动 smoke 已跑，文档控制页眉和目录点线噪音进入 P2-03 + PDF 清理，孤立深层章节进入 P2-01 details；最终验证 `97 passed`。
-- 已新增 [../Gate3-PEP-PDF-Review.md](../Gate3-PEP-PDF-Review.md)，把 CT / MI / XP PEP smoke 结果整理为人工核查报告。
+- 已新增 [../old/Gate3-PEP-PDF-Review.md](../old/Gate3-PEP-PDF-Review.md)，把 CT / MI / XP PEP smoke 结果整理为人工核查报告。
 - 已根据 CT 人工反馈补强 PDF parser：Content/TOC 页过滤、History table candidate、History 续页行过滤、figure caption candidate、短标题续行拼接；CT 7.16 已完整保留“法规核准计划”。
-- 已新增 [../Pro-Input-Praser.md](../Pro-Input-Praser.md)，沉淀 parser 经验、难点、OCR/multimodal 决策边界和人工 review 清单。
-- 已刷新 [../Gate3-PEP-PDF-Review.md](../Gate3-PEP-PDF-Review.md) 的 CT / MI / XP smoke 数字：三份 PEP 均有 History table 和 figure caption candidate，rootless child sections 清零，剩余 P2-01 level jump warning。
+- 已新增 [../old/Pro-Input-Praser.md](../old/Pro-Input-Praser.md)，沉淀 parser 经验、难点、OCR/multimodal 决策边界和人工 review 清单。
+- 已刷新 [../old/Gate3-PEP-PDF-Review.md](../old/Gate3-PEP-PDF-Review.md) 的 CT / MI / XP smoke 数字：三份 PEP 均有 History table 和 figure caption candidate，rootless child sections 清零，剩余 P2-01 level jump warning。
 - 已完成 Gate 4/5 Section Chunk + Retrieval Eval MVP：新增 section chunk builder、deterministic retrieval、retrieval eval cases、`/api/documents/{document_id}/chunks`，并补 `visual_review_items` 作为 OCR / multimodal review queue。
 - 已跑真实 CT / MI / XP smoke：CT 146 chunks / visual 2，MI 93 chunks / visual 1，XP 163 chunks / visual 5；CT 7.16 selected-docs 检索排第一，R2 查询回到 R2 正文/裁剪规则。
 - 已完成全量验证：`compileall`、`pytest`、`git diff --check` 通过，当前 `109 passed`，仅保留 StarletteDeprecationWarning。
-- 已根据用户确认新增 Gate 6 自适应主 Chat 回答计划：[../Gate6-Adaptive-Answer-Workflow-Plan.md](../Gate6-Adaptive-Answer-Workflow-Plan.md)，明确 question intent、企业关键词归一、AnswerEvidencePackage、adaptive prompt policy 和 answer eval。
+- 已根据用户确认新增 Gate 6 自适应主 Chat 回答计划：[../old/Gate6-Adaptive-Answer-Workflow-Plan.md](../old/Gate6-Adaptive-Answer-Workflow-Plan.md)，明确 question intent、企业关键词归一、AnswerEvidencePackage、adaptive prompt policy 和 answer eval。
 - 已整理 Design 目录入口：新增 [../TODO.md](../TODO.md) 作为唯一阶段计划入口；计划、方案、TODO 都在该文件按 Phase 0-5 展开；外部 Plan / Review / Notes 文档降级为附件证据或历史背景；[../README.md](../README.md) 只做附件导航。
 - 已实现 Gate 6 Answer Foundation：新增 `Tool/workflows/answer.py`，覆盖 `QuestionIntent`、企业关键词归一和 `RetrievalResult -> AnswerEvidencePackage`；History/template change 和缺 source_refs hit 不作为 primary evidence；验证 `compileall`、`pytest`、`git diff --check`、diagnostics 通过，当前 `114 passed`。
 - 已实现 v0.3 NotebookLM 三栏 Session Workspace skeleton：左 Sources/Tree/Graph，中 Session Chat，右 Session Note/Reference/Workflow/Admin；复用现有上传、模型选择、LLM 开关、推荐问题、citation 和后台入口。
@@ -61,7 +161,9 @@
 
 ### In Progress
 
-- 当前主线以 [../TODO.md](../TODO.md) 为准：Phase 3.5 / G9 QT Parser Core 的 G9-01 至 G9-08 已完成；下一步建议进行集中人工 review，然后回到 G8 v0.4 UI/contract 修订、真实 Tree + Chat flow、Graph MVP。
+- 当前主线以 [../TODO.md](../TODO.md) 为准：Phase 3.5 / G9 QT Parser Core 的 G9-01 至 G9-08 已完成；Phase 5 / G8 已开始接入 Evidence Review Workspace，下一步继续做 Evidence Card / Source Anchor Card、Table/Visual inspector 和 pin to Notes。
+- 最新优先级以 [../TODO.md](../TODO.md) 的 `1.1 P0 重排` 为准：G8-01 Session Query API 高于 UI 视觉打磨；G8-08 从混合工作台改为独立 Review Gate 页面。
+- 本地服务状态：前端 dev server `http://127.0.0.1:5173/`，后端 FastAPI `http://127.0.0.1:8000/`；如果再次出现前端 500，优先看后端是否仍在运行以及 Vite proxy 是否出现 `ECONNREFUSED 127.0.0.1:8000`。
 
 ### To Verify
 
@@ -72,7 +174,8 @@
 
 ### Next Up
 
-- 推荐首选：G9 集中人工 review，核查 parser fusion metadata、visual candidate gate、retriever backend comparison、answer eval 和 `/api/session/handoff/{document_id}` payload。
-- 第二步：回到 G8 v0.4 UI/contract 修订、真实 Tree + Chat flow、Graph MVP。
-- 第三步：阶段确认后再本地 commit / 远端 push。
-- 后续回到 G8：v0.4 UI/contract 修订、真实 Tree + Chat flow、Graph MVP。
+- 继续 G8-08D：新增 Evidence Card / Source Anchor Card，把 `frag/page/heading_path` 转成人可读证据卡。
+- 继续 G8-01：新增 Session Query API，使主 Chat 从当前 selected PEP 的 section chunks 检索，而不是继续走全局 Wiki-first `/chat/query`。
+- 继续 P0-B：把中间区拆成 Review Gate / Ask Workspace 两页，JSON/Admin 从普通用户路径中移出。
+- 继续 G8-08E：补 pin to Notes 动作和更正式的 review verdict 保存口径。
+- 后续补 Table Inspector / Visual Candidate Card，保证表格和图像候选不会被默认为可信事实。

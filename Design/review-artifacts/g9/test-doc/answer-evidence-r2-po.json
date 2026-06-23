@@ -1,0 +1,277 @@
+{
+  "question": "What should the Product Owner prepare during R2?",
+  "intent": {
+    "intent_type": "role_action_guidance",
+    "question_terms": [
+      "R2",
+      "Product Owner"
+    ],
+    "normalized_terms": {
+      "stage": [
+        "R2"
+      ],
+      "milestone": [],
+      "role": [
+        "Product Owner"
+      ],
+      "deliverable": [],
+      "bu": [],
+      "section": []
+    },
+    "source_scope_hint": "selected_docs_or_all_sources",
+    "answer_shape": "adaptive_guidance",
+    "reference_density": "high",
+    "risk_level": "process_compliance",
+    "requires_abstention_check": true
+  },
+  "source_scope": {
+    "mode": "selected_docs",
+    "document_ids": [
+      "doc-20260611142119-76729744"
+    ]
+  },
+  "strategy_used": "hybrid_retrieval",
+  "evidence_items": [
+    {
+      "evidence_id": "ev-1",
+      "document_id": "doc-20260611142119-76729744",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-6",
+      "section_title": "5.2 R2 Planning",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "5 Process and Requirement",
+        "5.2 R2 Planning"
+      ],
+      "anchor_label": "L21-L21",
+      "quote": "During R2, the Product Owner shall prepare the QMP input, confirm product requirements, and coordinate with the Project Manager before the review gate.",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-4",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-6",
+          "section_title": "5.2 R2 Planning",
+          "anchor_label": "L21-L21",
+          "anchors": {
+            "line_start": 21,
+            "line_end": 21,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "5 Process and Requirement",
+              "5.2 R2 Planning"
+            ]
+          },
+          "quote": "During R2, the Product Owner shall prepare the QMP input, confirm product requirements, and coordinate with the Project Manager before the review gate."
+        },
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-5",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-6",
+          "section_title": "5.2 R2 Planning",
+          "anchor_label": "L23-L26",
+          "anchors": {
+            "line_start": 23,
+            "line_end": 26,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "5 Process and Requirement",
+              "5.2 R2 Planning"
+            ]
+          },
+          "quote": "| Role | Responsibility | Deliverable | | --- | --- | --- | | Product Owner | Prepare R2 product requirement input | QMP | | Project Manager | Coordinate R2 review readiness | Review plan |"
+        }
+      ],
+      "score": 4.918,
+      "matched_terms": [
+        "during",
+        "owner",
+        "prepare",
+        "product",
+        "product owner",
+        "r2"
+      ],
+      "signals": [
+        "stage_r2",
+        "role_product_owner",
+        "deliverable_qmp"
+      ],
+      "supports": [
+        "stage",
+        "role",
+        "deliverable"
+      ]
+    },
+    {
+      "evidence_id": "ev-2",
+      "document_id": "doc-20260611142119-76729744",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-6",
+      "section_title": "5.2 R2 Planning",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "5 Process and Requirement",
+        "5.2 R2 Planning"
+      ],
+      "anchor_label": "L23-L26",
+      "quote": "Role | Responsibility | Deliverable\n--- | --- | ---\nProduct Owner | Prepare R2 product requirement input | QMP",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "table_id": "tbl-2",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-6",
+          "section_title": "5.2 R2 Planning",
+          "anchor_label": "L23-L26",
+          "anchors": {
+            "line_start": 23,
+            "line_end": 26,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "5 Process and Requirement",
+              "5.2 R2 Planning"
+            ]
+          },
+          "quote": "Role | Responsibility | Deliverable\n--- | --- | ---\nProduct Owner | Prepare R2 product requirement input | QMP"
+        }
+      ],
+      "score": 4.8387,
+      "matched_terms": [
+        "owner",
+        "prepare",
+        "product",
+        "product owner",
+        "r2"
+      ],
+      "signals": [
+        "stage_r2",
+        "role_product_owner",
+        "deliverable_qmp",
+        "role_table",
+        "deliverable_table",
+        "table"
+      ],
+      "supports": [
+        "stage",
+        "role",
+        "deliverable"
+      ]
+    },
+    {
+      "evidence_id": "ev-3",
+      "document_id": "doc-20260611142119-76729744",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-4",
+      "section_title": "2 Reference",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "2 Reference"
+      ],
+      "anchor_label": "L15-L15",
+      "quote": "The R2 review package shall cite the Product Owner responsibilities and the QMP deliverable source.",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-3",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-4",
+          "section_title": "2 Reference",
+          "anchor_label": "L15-L15",
+          "anchors": {
+            "line_start": 15,
+            "line_end": 15,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "2 Reference"
+            ]
+          },
+          "quote": "The R2 review package shall cite the Product Owner responsibilities and the QMP deliverable source."
+        }
+      ],
+      "score": 4.7619,
+      "matched_terms": [
+        "owner",
+        "product",
+        "product owner",
+        "r2"
+      ],
+      "signals": [
+        "stage_r2",
+        "role_product_owner",
+        "deliverable_qmp"
+      ],
+      "supports": [
+        "stage",
+        "role",
+        "deliverable"
+      ]
+    },
+    {
+      "evidence_id": "ev-4",
+      "document_id": "doc-20260611142119-76729744",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-7",
+      "section_title": "5.3 R3 Verification",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "5 Process and Requirement",
+        "5.3 R3 Verification"
+      ],
+      "anchor_label": "L30-L30",
+      "quote": "During R3, the Project Manager shall confirm verification evidence and follow up open issues.",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-6",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-7",
+          "section_title": "5.3 R3 Verification",
+          "anchor_label": "L30-L30",
+          "anchors": {
+            "line_start": 30,
+            "line_end": 30,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "5 Process and Requirement",
+              "5.3 R3 Verification"
+            ]
+          },
+          "quote": "During R3, the Project Manager shall confirm verification evidence and follow up open issues."
+        }
+      ],
+      "score": 3.125,
+      "matched_terms": [
+        "during"
+      ],
+      "signals": [
+        "stage_r3"
+      ],
+      "supports": [
+        "stage"
+      ]
+    }
+  ],
+  "coverage": {
+    "documents": [
+      "doc-20260611142119-76729744"
+    ],
+    "sections": [
+      "sec-4",
+      "sec-6",
+      "sec-7"
+    ],
+    "evidence_count": 4,
+    "missing": []
+  },
+  "missing_evidence": [],
+  "trace": [
+    "hybrid retriever fanout: rule_section, full_text, vector",
+    "scoped_section_retrieval: 5 hits",
+    "full_text_retrieval: 4 hits",
+    "vector_retrieval: 3 hits",
+    "rrf fusion combined 12 backend hits",
+    "skipped chunk-doc-20260611142119-76729744-1: document_history_not_primary_evidence",
+    "answer evidence package built"
+  ]
+}

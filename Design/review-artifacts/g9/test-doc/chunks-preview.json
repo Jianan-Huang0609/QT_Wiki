@@ -1,0 +1,372 @@
+{
+  "document_id": "doc-20260611142119-76729744",
+  "chunk_count": 9,
+  "items": [
+    {
+      "chunk_id": "chunk-doc-20260611142119-76729744-1",
+      "document_id": "doc-20260611142119-76729744",
+      "document_title": "Test PEP Review Fixture",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-2",
+      "section_title": "0 History",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "0 History"
+      ],
+      "chunk_type": "section",
+      "text": "0 History | Nr. | Page | Version | Change description | CR No. | | --- | --- | --- | --- | --- | | 1 | All | 01 | Initial release | CR-001 |",
+      "quote": "0 History | Nr. | Page | Version | Change description | CR No. | | --- | --- | --- | --- | --- | | 1 | All | 01 | Initial release | CR-001 |",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-1",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-2",
+          "section_title": "0 History",
+          "anchor_label": "L5-L7",
+          "anchors": {
+            "line_start": 5,
+            "line_end": 7,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "0 History"
+            ]
+          },
+          "quote": "| Nr. | Page | Version | Change description | CR No. | | --- | --- | --- | --- | --- | | 1 | All | 01 | Initial release | CR-001 |"
+        }
+      ],
+      "anchors": {
+        "line_start": 5,
+        "line_end": 7
+      },
+      "signals": [
+        "document_history"
+      ],
+      "metadata": {}
+    },
+    {
+      "chunk_id": "chunk-doc-20260611142119-76729744-2",
+      "document_id": "doc-20260611142119-76729744",
+      "document_title": "Test PEP Review Fixture",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-3",
+      "section_title": "1 Purpose",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "1 Purpose"
+      ],
+      "chunk_type": "section",
+      "text": "1 Purpose This test PEP fixture is used to review the QT Wiki G9 parser, retrieval, answer evidence, and handoff contracts.",
+      "quote": "1 Purpose This test PEP fixture is used to review the QT Wiki G9 parser, retrieval, answer evidence, and handoff contracts.",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-2",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-3",
+          "section_title": "1 Purpose",
+          "anchor_label": "L11-L11",
+          "anchors": {
+            "line_start": 11,
+            "line_end": 11,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "1 Purpose"
+            ]
+          },
+          "quote": "This test PEP fixture is used to review the QT Wiki G9 parser, retrieval, answer evidence, and handoff contracts."
+        }
+      ],
+      "anchors": {
+        "line_start": 11,
+        "line_end": 11
+      },
+      "signals": [],
+      "metadata": {}
+    },
+    {
+      "chunk_id": "chunk-doc-20260611142119-76729744-3",
+      "document_id": "doc-20260611142119-76729744",
+      "document_title": "Test PEP Review Fixture",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-4",
+      "section_title": "2 Reference",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "2 Reference"
+      ],
+      "chunk_type": "section",
+      "text": "2 Reference The R2 review package shall cite the Product Owner responsibilities and the QMP deliverable source.",
+      "quote": "2 Reference The R2 review package shall cite the Product Owner responsibilities and the QMP deliverable source.",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-3",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-4",
+          "section_title": "2 Reference",
+          "anchor_label": "L15-L15",
+          "anchors": {
+            "line_start": 15,
+            "line_end": 15,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "2 Reference"
+            ]
+          },
+          "quote": "The R2 review package shall cite the Product Owner responsibilities and the QMP deliverable source."
+        }
+      ],
+      "anchors": {
+        "line_start": 15,
+        "line_end": 15
+      },
+      "signals": [
+        "stage_r2",
+        "role_product_owner",
+        "deliverable_qmp"
+      ],
+      "metadata": {}
+    },
+    {
+      "chunk_id": "chunk-doc-20260611142119-76729744-4",
+      "document_id": "doc-20260611142119-76729744",
+      "document_title": "Test PEP Review Fixture",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-6",
+      "section_title": "5.2 R2 Planning",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "5 Process and Requirement",
+        "5.2 R2 Planning"
+      ],
+      "chunk_type": "section",
+      "text": "5.2 R2 Planning During R2, the Product Owner shall prepare the QMP input, confirm product requirements, and coordinate with the Project Manager before the review gate. | Role | Responsibility | Deliverable | | --- | --- | --- | | Product Owner | Prepare R2 product requirement input | QMP | | Project Manager | Coordinate R2 review readiness | Review plan |",
+      "quote": "5.2 R2 Planning During R2, the Product Owner shall prepare the QMP input, confirm product requirements, and coordinate with the Project Manager before the review gate. | Role | Responsibility | Deliverable | | --- | --- | --- | | Product Owner | Prepare R2 product requirement input | QMP | | Project Manager | Coordinate R2 review readiness | Review plan |",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-4",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-6",
+          "section_title": "5.2 R2 Planning",
+          "anchor_label": "L21-L21",
+          "anchors": {
+            "line_start": 21,
+            "line_end": 21,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "5 Process and Requirement",
+              "5.2 R2 Planning"
+            ]
+          },
+          "quote": "During R2, the Product Owner shall prepare the QMP input, confirm product requirements, and coordinate with the Project Manager before the review gate."
+        },
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-5",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-6",
+          "section_title": "5.2 R2 Planning",
+          "anchor_label": "L23-L26",
+          "anchors": {
+            "line_start": 23,
+            "line_end": 26,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "5 Process and Requirement",
+              "5.2 R2 Planning"
+            ]
+          },
+          "quote": "| Role | Responsibility | Deliverable | | --- | --- | --- | | Product Owner | Prepare R2 product requirement input | QMP | | Project Manager | Coordinate R2 review readiness | Review plan |"
+        }
+      ],
+      "anchors": {
+        "line_start": 21,
+        "line_end": 26
+      },
+      "signals": [
+        "stage_r2",
+        "role_product_owner",
+        "deliverable_qmp"
+      ],
+      "metadata": {}
+    },
+    {
+      "chunk_id": "chunk-doc-20260611142119-76729744-5",
+      "document_id": "doc-20260611142119-76729744",
+      "document_title": "Test PEP Review Fixture",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-7",
+      "section_title": "5.3 R3 Verification",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "5 Process and Requirement",
+        "5.3 R3 Verification"
+      ],
+      "chunk_type": "section",
+      "text": "5.3 R3 Verification During R3, the Project Manager shall confirm verification evidence and follow up open issues.",
+      "quote": "5.3 R3 Verification During R3, the Project Manager shall confirm verification evidence and follow up open issues.",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-6",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-7",
+          "section_title": "5.3 R3 Verification",
+          "anchor_label": "L30-L30",
+          "anchors": {
+            "line_start": 30,
+            "line_end": 30,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "5 Process and Requirement",
+              "5.3 R3 Verification"
+            ]
+          },
+          "quote": "During R3, the Project Manager shall confirm verification evidence and follow up open issues."
+        }
+      ],
+      "anchors": {
+        "line_start": 30,
+        "line_end": 30
+      },
+      "signals": [
+        "stage_r3"
+      ],
+      "metadata": {}
+    },
+    {
+      "chunk_id": "chunk-doc-20260611142119-76729744-6",
+      "document_id": "doc-20260611142119-76729744",
+      "document_title": "Test PEP Review Fixture",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-8",
+      "section_title": "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（法规核准计划）",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（法规核准计划）"
+      ],
+      "chunk_type": "section",
+      "text": "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（法规核准计划） The regulatory approval plan shall identify country-specific approval needs before release readiness review.",
+      "quote": "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（法规核准计划） The regulatory approval plan shall identify country-specific approval needs before release readiness review.",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-7",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-8",
+          "section_title": "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（法规核准计划）",
+          "anchor_label": "L34-L34",
+          "anchors": {
+            "line_start": 34,
+            "line_end": 34,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（法规核准计划）"
+            ]
+          },
+          "quote": "The regulatory approval plan shall identify country-specific approval needs before release readiness review."
+        }
+      ],
+      "anchors": {
+        "line_start": 34,
+        "line_end": 34
+      },
+      "signals": [],
+      "metadata": {}
+    },
+    {
+      "chunk_id": "chunk-doc-20260611142119-76729744-7",
+      "document_id": "doc-20260611142119-76729744",
+      "document_title": "Test PEP Review Fixture",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-9",
+      "section_title": "8 Figures",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "8 Figures"
+      ],
+      "chunk_type": "section",
+      "text": "8 Figures Figure 1: V-model / V 字型模式. The figure requires crop plus multimodal review before it can become primary evidence.",
+      "quote": "8 Figures Figure 1: V-model / V 字型模式. The figure requires crop plus multimodal review before it can become primary evidence.",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "fragment_id": "frag-8",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-9",
+          "section_title": "8 Figures",
+          "anchor_label": "L38-L38",
+          "anchors": {
+            "line_start": 38,
+            "line_end": 38,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "8 Figures"
+            ]
+          },
+          "quote": "Figure 1: V-model / V 字型模式. The figure requires crop plus multimodal review before it can become primary evidence."
+        }
+      ],
+      "anchors": {
+        "line_start": 38,
+        "line_end": 38
+      },
+      "signals": [
+        "figure"
+      ],
+      "metadata": {}
+    },
+    {
+      "chunk_id": "chunk-doc-20260611142119-76729744-8",
+      "document_id": "doc-20260611142119-76729744",
+      "document_title": "Test PEP Review Fixture",
+      "file_name": "g9-test-pep.md",
+      "section_id": "sec-2",
+      "section_title": "0 History",
+      "section_path": [
+        "Test PEP Review Fixture",
+        "0 History"
+      ],
+      "chunk_type": "table",
+      "text": "0 History Nr. | Page | Version | Change description | CR No. --- | --- | --- | --- | --- 1 | All | 01 | Initial release | CR-001",
+      "quote": "0 History Nr. | Page | Version | Change description | CR No. --- | --- | --- | --- | --- 1 | All | 01 | Initial release | CR-001",
+      "source_refs": [
+        {
+          "document_id": "doc-20260611142119-76729744",
+          "table_id": "tbl-1",
+          "file_name": "g9-test-pep.md",
+          "section_id": "sec-2",
+          "section_title": "0 History",
+          "anchor_label": "L5-L7",
+          "anchors": {
+            "line_start": 5,
+            "line_end": 7,
+            "heading_path": [
+              "Test PEP Review Fixture",
+              "0 History"
+            ]
+          },
+          "quote": "Nr. | Page | Version | Change description | CR No.\n--- | --- | --- | --- | ---\n1 | All | 01 | Initial release | CR-001"
+        }
+      ],
+      "anchors": {
+        "line_start": 5,
+        "line_end": 7,
+        "heading_path": [
+          "Test PEP Review Fixture",
+          "0 History"
+        ]
+      },
+      "signals": [
+        "document_history",
+        "table"
+      ],
+      "metadata": {
+        "row_count": 3,
+        "column_count": 5
+      }
+    }
+  ]
+}

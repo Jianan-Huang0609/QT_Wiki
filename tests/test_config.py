@@ -35,6 +35,21 @@ def test_env_override_api_key(sample_config_data):
         assert cfg["azure_api_key"] == "env-override-key"
 
 
+def test_blank_azure_key_falls_back_to_default_config_key(tmp_path, sample_config_data):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "azure_gpt4o_config.json").write_text(
+        json.dumps({"azure_api_key": "default-gateway-key"}),
+        encoding="utf-8",
+    )
+    blank_key_data = {**sample_config_data, "azure_api_key": ""}
+
+    with patch("Tool.llm.config.REPO_ROOT", tmp_path), patch.dict(os.environ, {}, clear=True):
+        cfg = _apply_env_overrides(blank_key_data)
+
+    assert cfg["azure_api_key"] == "default-gateway-key"
+
+
 def test_env_override_endpoint(sample_config_data):
     with patch.dict(os.environ, {"AZURE_OPENAI_ENDPOINT": "https://env-endpoint.example.com"}):
         cfg = _apply_env_overrides(sample_config_data)

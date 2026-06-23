@@ -1,0 +1,1000 @@
+{
+  "document_id": "doc-20260611142812-f56c6cf9",
+  "items": [
+    {
+      "section_id": "sec-1",
+      "title": "0 History/ 修改历史",
+      "level": 1,
+      "page_range": [
+        5,
+        6,
+        7
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-2",
+      "title": "1 Purpose and scope / 目的和适用范围",
+      "level": 1,
+      "page_range": [
+        7
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-3",
+      "title": "2 Reference document / 参考文件",
+      "level": 1,
+      "page_range": [
+        7,
+        8,
+        9
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-4",
+      "title": "3 Abbreviations and Definitions/ 缩略语与定义",
+      "level": 1,
+      "page_range": [
+        9
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-5",
+      "title": "3.1 Abbreviations/ 缩略语",
+      "level": 2,
+      "page_range": [
+        9,
+        10
+      ],
+      "parent_id": "sec-4"
+    },
+    {
+      "section_id": "sec-6",
+      "title": "R1 R5",
+      "level": 1,
+      "page_range": [
+        10
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-7",
+      "title": "R5 Product successfully validated, no open",
+      "level": 1,
+      "page_range": [
+        10
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-8",
+      "title": "R5 产品已成功确认，文档中无未解",
+      "level": 1,
+      "page_range": [
+        10,
+        11
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-9",
+      "title": "3.2 Definitions / 定义",
+      "level": 2,
+      "page_range": [
+        11
+      ],
+      "parent_id": "sec-8"
+    },
+    {
+      "section_id": "sec-10",
+      "title": "3.2.1 Engineering sample/prototype / 工程样机（EM）",
+      "level": 3,
+      "page_range": [
+        11
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-11",
+      "title": "3.2.2 Drawing sample/prototype (ZM) / 图纸样机 (ZM)",
+      "level": 3,
+      "page_range": [
+        11
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-12",
+      "title": "3.2.3 Production sample/prototype/ 生产样机（FM）",
+      "level": 3,
+      "page_range": [
+        11
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-13",
+      "title": "3.2.4 Formative evaluation/ 形成性评估",
+      "level": 3,
+      "page_range": [
+        11
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-14",
+      "title": "3.2.5 Summative evaluation/ 总结性评估",
+      "level": 3,
+      "page_range": [
+        11
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-15",
+      "title": "3.2.6 eSW/嵌入式软件",
+      "level": 3,
+      "page_range": [
+        11,
+        12
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-16",
+      "title": "3.2.7 Intended Use/ 预期用途",
+      "level": 3,
+      "page_range": [
+        12
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-17",
+      "title": "3.2.8 Intended Purpose/ 预期目的",
+      "level": 3,
+      "page_range": [
+        12
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-18",
+      "title": "3.2.9 Software Component/ 软件组件",
+      "level": 3,
+      "page_range": [
+        12
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-19",
+      "title": "3.2.10 Non-Product Software/ 非产品软件",
+      "level": 3,
+      "page_range": [
+        12
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-20",
+      "title": "3.2.11 Component/组件",
+      "level": 3,
+      "page_range": [
+        12
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-21",
+      "title": "3.2.12 Hardware Component/硬件组件",
+      "level": 3,
+      "page_range": [
+        12,
+        13
+      ],
+      "parent_id": "sec-9"
+    },
+    {
+      "section_id": "sec-22",
+      "title": "4 Flow chart / 流程图",
+      "level": 1,
+      "page_range": [
+        13,
+        14
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-23",
+      "title": "5 Process & Requirement/ 过程和需求",
+      "level": 1,
+      "page_range": [
+        14
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-24",
+      "title": "5.1 V-model/Requirement Tracing/ V 型模式/需求跟踪",
+      "level": 2,
+      "page_range": [
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "parent_id": "sec-23"
+    },
+    {
+      "section_id": "sec-25",
+      "title": "5.2 Structure of the Product Engineering Process/ 产品设计过程结构",
+      "level": 2,
+      "page_range": [
+        19,
+        20
+      ],
+      "parent_id": "sec-23"
+    },
+    {
+      "section_id": "sec-26",
+      "title": "5.3 System development phases and their purpose/ 系统开发阶段及其目的",
+      "level": 2,
+      "page_range": [
+        20,
+        21
+      ],
+      "parent_id": "sec-23"
+    },
+    {
+      "section_id": "sec-27",
+      "title": "5.3.1 Process Phase 1: Idea Collection / 过程阶段 1：想法收集",
+      "level": 3,
+      "page_range": [
+        21
+      ],
+      "parent_id": "sec-26"
+    },
+    {
+      "section_id": "sec-28",
+      "title": "5.3.2 Process Phase 2: Product Definition / 过程阶段 2：产品定义",
+      "level": 3,
+      "page_range": [
+        21,
+        22,
+        23,
+        24,
+        25
+      ],
+      "parent_id": "sec-26"
+    },
+    {
+      "section_id": "sec-29",
+      "title": "5.3.3 Process Phase 3: Product Development / 过程阶段 3：产品开发",
+      "level": 3,
+      "page_range": [
+        25,
+        26,
+        27,
+        28,
+        29
+      ],
+      "parent_id": "sec-26"
+    },
+    {
+      "section_id": "sec-30",
+      "title": "5.3.4 Process Phase 4: Product Support / 过程阶段 4：产品支持",
+      "level": 3,
+      "page_range": [
+        29,
+        30,
+        31,
+        32
+      ],
+      "parent_id": "sec-26"
+    },
+    {
+      "section_id": "sec-31",
+      "title": "6 General requirements/ 通用要求",
+      "level": 1,
+      "page_range": [
+        32
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-32",
+      "title": "6.1 Design and development planning/ 设计和开发计划",
+      "level": 2,
+      "page_range": [
+        32
+      ],
+      "parent_id": "sec-31"
+    },
+    {
+      "section_id": "sec-33",
+      "title": "6.2 Tailoring/ 裁减",
+      "level": 2,
+      "page_range": [
+        32
+      ],
+      "parent_id": "sec-31"
+    },
+    {
+      "section_id": "sec-34",
+      "title": "6.2.1 Project Specific Tailoring/ 项目特定裁减",
+      "level": 3,
+      "page_range": [
+        32
+      ],
+      "parent_id": "sec-33"
+    },
+    {
+      "section_id": "sec-35",
+      "title": "6.2.2 Software Specific Tailoring/ 软件特定裁减",
+      "level": 3,
+      "page_range": [
+        32
+      ],
+      "parent_id": "sec-33"
+    },
+    {
+      "section_id": "sec-36",
+      "title": "6.2.3 Standard Tailoring for Successor Versions of Platform Release/ 平台发布后续版本的标",
+      "level": 3,
+      "page_range": [
+        32
+      ],
+      "parent_id": "sec-33"
+    },
+    {
+      "section_id": "sec-37",
+      "title": "R1 /R2 and M120/M150/M200 can be combined",
+      "level": 1,
+      "page_range": [
+        32
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-38",
+      "title": "R2",
+      "level": 1,
+      "page_range": [
+        32
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-39",
+      "title": "6.2.4 Standard Tailoring for Agile Approaches during Product Development/ 产品开发期间敏",
+      "level": 3,
+      "page_range": [
+        32,
+        33
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-40",
+      "title": "6.3 Requirements for the product/ 产品需求",
+      "level": 2,
+      "page_range": [
+        33
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-41",
+      "title": "6.4 Further Requirements for Development and Maintenance/开发和维护的进一步要求",
+      "level": 2,
+      "page_range": [
+        33
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-42",
+      "title": "6.4.2 Claims/ 声明",
+      "level": 3,
+      "page_range": [
+        33
+      ],
+      "parent_id": "sec-41"
+    },
+    {
+      "section_id": "sec-43",
+      "title": "6.4.3 Product Security/ 产品网络安全",
+      "level": 3,
+      "page_range": [
+        33
+      ],
+      "parent_id": "sec-41"
+    },
+    {
+      "section_id": "sec-44",
+      "title": "6.4.4 AI Systems/ 人工智能系统",
+      "level": 3,
+      "page_range": [
+        33,
+        34
+      ],
+      "parent_id": "sec-41"
+    },
+    {
+      "section_id": "sec-45",
+      "title": "6.5 Requirement tracing/ 需求追踪",
+      "level": 2,
+      "page_range": [
+        34
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-46",
+      "title": "6.6 Automated processes/ 自动过程",
+      "level": 2,
+      "page_range": [
+        34
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-47",
+      "title": "6.7 Risk management/ 风险管理",
+      "level": 2,
+      "page_range": [
+        34
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-48",
+      "title": "6.8 Product Reliability/产品可靠性",
+      "level": 2,
+      "page_range": [
+        34
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-49",
+      "title": "6.9 Product-Related Environmental Protection",
+      "level": 2,
+      "page_range": [
+        34,
+        35
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-50",
+      "title": "6.10 Standards & Laws/ 标准和法律",
+      "level": 2,
+      "page_range": [
+        35
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-51",
+      "title": "6.11 Patents and trademarks/ 专利和商标",
+      "level": 2,
+      "page_range": [
+        35
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-52",
+      "title": "6.12 Procurement and Use of Third-Party Software/ 采购和第三方软件使用",
+      "level": 2,
+      "page_range": [
+        35
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-53",
+      "title": "6.13 Preventive action/ 预防措施",
+      "level": 2,
+      "page_range": [
+        35,
+        36
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-54",
+      "title": "6.14 Concurrent engineering/ 并行开发",
+      "level": 2,
+      "page_range": [
+        36
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-55",
+      "title": "6.15 Transfer to Production/ 生产转移",
+      "level": 2,
+      "page_range": [
+        36
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-56",
+      "title": "6.16.1 Changes during product development/ 产品开发中的更改",
+      "level": 3,
+      "page_range": [
+        36
+      ],
+      "parent_id": "sec-55"
+    },
+    {
+      "section_id": "sec-57",
+      "title": "6.16.2 Changes after Release /Product enhancements/ 发布后的变更/产品增强",
+      "level": 3,
+      "page_range": [
+        36
+      ],
+      "parent_id": "sec-55"
+    },
+    {
+      "section_id": "sec-58",
+      "title": "6.17 Design review / Technical review/ 设计评审/技术评审",
+      "level": 2,
+      "page_range": [
+        36
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-59",
+      "title": "6.17.1 Design review/ 设计评审",
+      "level": 3,
+      "page_range": [
+        36,
+        37
+      ],
+      "parent_id": "sec-58"
+    },
+    {
+      "section_id": "sec-60",
+      "title": "6.17.2 Technical review / Content review/ 技术评审/内容评审",
+      "level": 3,
+      "page_range": [
+        37
+      ],
+      "parent_id": "sec-58"
+    },
+    {
+      "section_id": "sec-61",
+      "title": "6.18 Project phase application/ 项目阶段申请",
+      "level": 2,
+      "page_range": [
+        37
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-62",
+      "title": "6.19 Handling Deviations/偏差处理",
+      "level": 2,
+      "page_range": [
+        37,
+        38
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-63",
+      "title": "6.20 Design verification/ 设计验证",
+      "level": 2,
+      "page_range": [
+        38
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-64",
+      "title": "6.21 Design validation/ 设计确认",
+      "level": 2,
+      "page_range": [
+        38,
+        39,
+        40
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-65",
+      "title": "6.22 Process validation/ 过程确认",
+      "level": 2,
+      "page_range": [
+        40
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-66",
+      "title": "6.23 Clinical evaluation/ 临床评估",
+      "level": 2,
+      "page_range": [
+        40
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-67",
+      "title": "6.24 Software Development/软件开发",
+      "level": 2,
+      "page_range": [
+        40
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-68",
+      "title": "6.25 OTS Software/ 现成软件",
+      "level": 2,
+      "page_range": [
+        40,
+        41
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-69",
+      "title": "6.26 Unique Device Identification/ 唯一的设备识别",
+      "level": 2,
+      "page_range": [
+        41
+      ],
+      "parent_id": "sec-38"
+    },
+    {
+      "section_id": "sec-70",
+      "title": "7 Document/ 文档",
+      "level": 1,
+      "page_range": [
+        41
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-71",
+      "title": "7.1 Document management/ 文档管理",
+      "level": 2,
+      "page_range": [
+        41
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-72",
+      "title": "7.2 Quality management plan (QMP)/ 质量管理计划 （QMP）",
+      "level": 2,
+      "page_range": [
+        41,
+        42
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-73",
+      "title": "7.3 Project management plan (PMP) / 项目管理计划（PMP）",
+      "level": 2,
+      "page_range": [
+        42,
+        43
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-74",
+      "title": "7.4 Product requirements specification level/ 产品需求规范层级",
+      "level": 2,
+      "page_range": [
+        43
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-75",
+      "title": "7.5 System requirements specification level/ 系统需求说明级别",
+      "level": 2,
+      "page_range": [
+        43,
+        44,
+        45
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-76",
+      "title": "7.6 Subsystem / component level/ 子系统/部件级别",
+      "level": 2,
+      "page_range": [
+        45,
+        46
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-77",
+      "title": "7.7 System Realization concept/ 系统实施概念",
+      "level": 2,
+      "page_range": [
+        46
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-78",
+      "title": "7.8 Test concept/ 测试概念",
+      "level": 2,
+      "page_range": [
+        46
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-79",
+      "title": "7.9 Results from risk management/ 来自于风险管理的结果",
+      "level": 2,
+      "page_range": [
+        46
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-80",
+      "title": "7.10 Error prevention report/错误预防报告",
+      "level": 2,
+      "page_range": [
+        46,
+        47
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-81",
+      "title": "7.11 Document plan / design history file (DHF) / 文档计划/设计历史文件（DHF）",
+      "level": 2,
+      "page_range": [
+        47,
+        48
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-82",
+      "title": "7.13 Device master record (DMR)/ 产品制造性文档（DMR）",
+      "level": 2,
+      "page_range": [
+        48
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-83",
+      "title": "7.14 Medical Device File (MDF)/ 医疗器械文档（MDF）",
+      "level": 2,
+      "page_range": [
+        48,
+        49
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-84",
+      "title": "7.15 Technical documentation/ 技术文档",
+      "level": 2,
+      "page_range": [
+        49
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-85",
+      "title": "7.16 Country-specific approvals (regulatory approval plan) / 特定国家核准（法规核准计划）",
+      "level": 2,
+      "page_range": [
+        49
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-86",
+      "title": "7.17 Affidavit for Service Software/ 服务软件宣誓书",
+      "level": 2,
+      "page_range": [
+        49
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-87",
+      "title": "7.18 Usability engineering file/ 可用性工程文件",
+      "level": 2,
+      "page_range": [
+        49,
+        50
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-88",
+      "title": "7.19 System flowchart/ 系统流程图",
+      "level": 2,
+      "page_range": [
+        50
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-89",
+      "title": "7.20 Accompanying documents/ 随机文档",
+      "level": 2,
+      "page_range": [
+        50
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-90",
+      "title": "7.21 Financial product plan (FPP) / 财务产品计划",
+      "level": 2,
+      "page_range": [
+        50
+      ],
+      "parent_id": "sec-70"
+    },
+    {
+      "section_id": "sec-91",
+      "title": "8 Tasks and responsibilities/ 任务和职责",
+      "level": 1,
+      "page_range": [
+        50
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-92",
+      "title": "8.1 Management of SSME CT / SSME CT 管理层",
+      "level": 2,
+      "page_range": [
+        50,
+        51
+      ],
+      "parent_id": "sec-91"
+    },
+    {
+      "section_id": "sec-93",
+      "title": "8.3 Product Manager / 产品经理",
+      "level": 2,
+      "page_range": [
+        51
+      ],
+      "parent_id": "sec-91"
+    },
+    {
+      "section_id": "sec-94",
+      "title": "8.4 Project Manager / 项目经理",
+      "level": 2,
+      "page_range": [
+        51,
+        52
+      ],
+      "parent_id": "sec-91"
+    },
+    {
+      "section_id": "sec-95",
+      "title": "8.5 Product Quality Manager / 产品质量经理",
+      "level": 2,
+      "page_range": [
+        52,
+        53
+      ],
+      "parent_id": "sec-91"
+    },
+    {
+      "section_id": "sec-96",
+      "title": "8.6 Product Steering Group (PSG)/ 项目管理小组成员",
+      "level": 2,
+      "page_range": [
+        53
+      ],
+      "parent_id": "sec-91"
+    },
+    {
+      "section_id": "sec-97",
+      "title": "8.7 Responsibilities during delivery / 发运中的职责",
+      "level": 2,
+      "page_range": [
+        53,
+        54
+      ],
+      "parent_id": "sec-91"
+    },
+    {
+      "section_id": "sec-98",
+      "title": "9 Provisional solution and backward method/ 过渡措施和补救办法",
+      "level": 1,
+      "page_range": [
+        54
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-99",
+      "title": "10 Record/记录",
+      "level": 1,
+      "page_range": [
+        54
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-100",
+      "title": "11 Appendix/附录",
+      "level": 1,
+      "page_range": [
+        54
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-101",
+      "title": "1 Example of using the V-model in sub-systems 在子系统中使用 V 字型模式的实例",
+      "level": 1,
+      "page_range": [
+        54
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-102",
+      "title": "2 Example of “Project Phase Application“. “项目阶段申请”",
+      "level": 1,
+      "page_range": [
+        54
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-103",
+      "title": "3 Example of “Transfer Protocol“ “转移报告”实例",
+      "level": 1,
+      "page_range": [
+        54
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-104",
+      "title": "4 Example of “Production Review Protocol“ “生产评审报告”实例",
+      "level": 1,
+      "page_range": [
+        54
+      ],
+      "parent_id": null
+    },
+    {
+      "section_id": "sec-105",
+      "title": "5 Example of DMR/DHF document index DMR/DHF 文档索引的实例",
+      "level": 1,
+      "page_range": [
+        54,
+        55
+      ],
+      "parent_id": null
+    }
+  ]
+}

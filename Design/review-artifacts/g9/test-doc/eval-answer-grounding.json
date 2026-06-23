@@ -1,0 +1,32 @@
+{
+  "eval_summary": {
+    "pass": 1,
+    "warn": 0,
+    "fail": 0,
+    "na": 0
+  },
+  "metrics": {
+    "evidence_count": 4,
+    "missing_evidence_count": 0,
+    "cited_evidence_count": 1
+  },
+  "findings": [
+    {
+      "eval_id": "A1-01",
+      "status": "pass",
+      "message": "answer cites primary evidence",
+      "reference": "REF-ANSWER-EVAL",
+      "details": {
+        "cited_evidence_ids": [
+          "ev-1"
+        ],
+        "available_evidence_ids": [
+          "ev-1",
+          "ev-2",
+          "ev-3",
+          "ev-4"
+        ]
+      }
+    }
+  ]
+}

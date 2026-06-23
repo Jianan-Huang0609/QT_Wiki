@@ -156,6 +156,38 @@ export interface Citation {
   quote: string;
   document_id?: string;
   fragment_id?: string;
+  section_id?: string;
+  evidence_id?: string;
+  anchors?: Record<string, unknown>;
+  source_context?: CitationSourceContext;
+}
+
+export interface CitationSourceContext {
+  source?: string;
+  chunk_id?: string;
+  chunk_type?: string;
+  section_id?: string;
+  section_title?: string;
+  anchor_label?: string;
+  context_before?: string;
+  context_text?: string;
+  context_after?: string;
+}
+
+export interface AnswerRunStepPayload {
+  step_id: string;
+  label: string;
+  status: "waiting" | "running" | "done" | "warning" | "deferred";
+  summary: string;
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
+}
+
+export interface AnswerRunPayload {
+  schema_version: string;
+  run_id: string;
+  loop: string;
+  steps: AnswerRunStepPayload[];
 }
 
 export interface QueryResult {
@@ -167,16 +199,22 @@ export interface QueryResult {
   trace: string[];
   suggested_questions?: string[];
   structured_matches?: StructuredMatch[];
+  answer_run?: AnswerRunPayload | null;
 }
 
 export interface StructuredMatch {
-  package_id: string;
-  document_id: string;
-  title: string;
-  business_type: string;
-  relation_count: number;
-  object_count: number;
-  source_refs: SourceRef[];
+  package_id?: string;
+  document_id?: string;
+  title?: string;
+  business_type?: string;
+  relation_count?: number;
+  object_count?: number;
+  source_refs?: SourceRef[];
+  question?: string;
+  strategy_used?: string;
+  evidence_items?: { evidence_id?: string; document_id?: string; section_title?: string; quote?: string }[];
+  coverage?: Record<string, unknown>;
+  missing_evidence?: Record<string, unknown>[];
 }
 
 export interface MappingMatrixItem {
@@ -224,4 +262,126 @@ export interface IndexStatus {
   terms: number;
   sources: number;
   lastBuilt: string;
+}
+
+export interface SessionHandoff {
+  schema_version: "session-handoff-v0.1" | string;
+  document_id: string;
+  source: SessionHandoffSource;
+  tree: SessionTree;
+  graph: SessionGraph;
+  retrieval: SessionRetrieval;
+  chat: SessionChatContract;
+  quality: SessionQuality;
+}
+
+export interface SessionHandoffSource {
+  document_id: string;
+  title: string;
+  file_name: string;
+  source_type: string;
+  doc_type: string;
+  parse_status: string;
+  section_count: number;
+  fragment_count: number;
+  table_count: number;
+  figure_count: number;
+  chunk_count: number;
+}
+
+export interface SessionTree {
+  root_id: string;
+  items: SessionTreeNode[];
+}
+
+export interface SessionTreeNode {
+  node_id: string;
+  node_type: "document" | "section" | string;
+  parent_id: string | null;
+  document_id: string;
+  title: string;
+  parse_status?: string;
+  section_id?: string;
+  level?: number;
+  page_range?: number[];
+  fragment_count?: number;
+  chunk_count?: number;
+  anchor_label?: string;
+}
+
+export interface SessionGraph {
+  nodes: SessionGraphNode[];
+  edges: SessionGraphEdge[];
+}
+
+export interface SessionGraphNode {
+  node_id: string;
+  node_type: string;
+  label: string;
+  section_id?: string;
+  chunk_id?: string;
+}
+
+export interface SessionGraphEdge {
+  edge_id: string;
+  relation_type: string;
+  source: string;
+  target: string;
+}
+
+export interface SessionRetrieval {
+  available_retrievers: string[];
+  default_retriever: string;
+  chunk_count: number;
+  preview_chunks: Record<string, unknown>[];
+}
+
+export interface SessionChatContract {
+  source_scope: Record<string, unknown>;
+  request_contract: Record<string, unknown>;
+  answer_contract: Record<string, unknown>;
+}
+
+export interface SessionQuality {
+  parse_status: string;
+  structure_quality?: Record<string, number | string | boolean>;
+  eval_summary?: Record<string, number>;
+  review_items?: SessionReviewItem[];
+  visual_review_items?: SessionVisualReviewItem[];
+  parser_fusion?: SessionParserFusion;
+}
+
+export interface SessionReviewItem {
+  review_id?: string;
+  eval_id: string;
+  severity?: RiskLevel | string;
+  status: string;
+  message: string;
+  reference?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface SessionVisualReviewItem {
+  review_id: string;
+  eval_id: string;
+  source_type: string;
+  source_id: string;
+  page?: number;
+  recommended_tool?: string;
+  reason: string;
+  status: string;
+  caption?: string;
+  anchors?: Record<string, unknown>;
+}
+
+export interface SessionParserFusion {
+  schema_version?: string;
+  fusion_mode?: string;
+  providers?: string[];
+  provider_roles?: Record<string, string>;
+  counts?: Record<string, number>;
+  canonical_output?: Record<string, number>;
+  samples?: Record<string, unknown[]>;
+  visual_candidates?: Record<string, unknown>[];
+  fusion_decisions?: Record<string, unknown>[];
 }

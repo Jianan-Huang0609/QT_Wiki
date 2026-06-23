@@ -1,0 +1,126 @@
+{
+  "document_id": "doc-20260611142812-f56c6cf9",
+  "file_name": "CT PEP AND 308 11.pdf",
+  "title": "Page 5 of 54 12/10/2025 - 5 -",
+  "parse_status": "needs_review",
+  "counts": {
+    "sections": 105,
+    "fragments": 1013,
+    "tables": 1,
+    "figures": 2,
+    "source_anchors": 1016,
+    "errors": 0
+  },
+  "structure_quality": {
+    "anchor_coverage": 1.0,
+    "section_confidence": 0.997,
+    "noise_rate": 0.0,
+    "low_confidence_count": 2,
+    "quality_issue_count": 2
+  },
+  "eval_summary": {
+    "pass": 3,
+    "warn": 2,
+    "fail": 0,
+    "na": 0
+  },
+  "review_items": [
+    {
+      "review_id": "review-P2-01",
+      "eval_id": "P2-01",
+      "severity": "medium",
+      "status": "warn",
+      "message": "section levels look inconsistent",
+      "reference": "REF-STRUCTURE",
+      "details": {
+        "level_jump_sections": [
+          "sec-39"
+        ],
+        "rootless_child_sections": []
+      }
+    },
+    {
+      "review_id": "review-P1-05",
+      "eval_id": "P1-05",
+      "severity": "medium",
+      "status": "warn",
+      "message": "visual OCR or multimodal review candidates need verification before trusted retrieval",
+      "reference": "REF-HITL",
+      "details": {
+        "visual_review_count": 2,
+        "source_ids": [
+          "fig-1",
+          "fig-2"
+        ],
+        "recommended_tools": [
+          "multimodal"
+        ]
+      }
+    }
+  ],
+  "visual_review_items": [
+    {
+      "review_id": "visual-doc-20260611142812-f56c6cf9-fig-1",
+      "eval_id": "P1-05",
+      "source_type": "figure",
+      "source_id": "fig-1",
+      "page": 15,
+      "recommended_tool": "multimodal",
+      "reason": "figure caption exists but diagram content has not been visually analyzed",
+      "status": "needs_review",
+      "caption": "Figure 1/图 1: V-model/V 字型模式",
+      "anchors": {
+        "page": 15,
+        "caption": "Figure 1/图 1: V-model/V 字型模式",
+        "source": "pdf_text_caption"
+      }
+    },
+    {
+      "review_id": "visual-doc-20260611142812-f56c6cf9-fig-2",
+      "eval_id": "P1-05",
+      "source_type": "figure",
+      "source_id": "fig-2",
+      "page": 20,
+      "recommended_tool": "multimodal",
+      "reason": "figure caption exists but diagram content has not been visually analyzed",
+      "status": "needs_review",
+      "caption": "Figure 2/图 2： Structure of the product engineering process/ 产品设计过程结构",
+      "anchors": {
+        "page": 20,
+        "caption": "Figure 2/图 2： Structure of the product engineering process/ 产品设计过程结构",
+        "source": "pdf_text_caption"
+      }
+    }
+  ],
+  "parser_fusion": {
+    "schema_version": "parser-fusion-v0.1",
+    "fusion_mode": "single_provider_passthrough",
+    "providers": [
+      "pypdf_fast_text"
+    ],
+    "provider_roles": {
+      "pypdf_fast_text": "fast_text"
+    },
+    "counts": {
+      "extraction_blocks": 0,
+      "layout_blocks": 0,
+      "table_blocks": 0,
+      "visual_candidates": 0,
+      "fusion_decisions": 0
+    },
+    "canonical_output": {
+      "sections": 105,
+      "fragments": 1013,
+      "tables": 1,
+      "figures": 2,
+      "source_anchors": 1016
+    },
+    "samples": {
+      "extraction_blocks": [],
+      "layout_blocks": [],
+      "table_blocks": []
+    },
+    "visual_candidates": [],
+    "fusion_decisions": []
+  }
+}

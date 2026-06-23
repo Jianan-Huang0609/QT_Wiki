@@ -1,0 +1,59 @@
+{
+  "schema_version": "parser-fusion-v0.1",
+  "fusion_mode": "visual_provider_extraction",
+  "providers": [
+    "vlm"
+  ],
+  "provider_roles": {
+    "vlm": "visual_candidate"
+  },
+  "counts": {
+    "extraction_blocks": 0,
+    "layout_blocks": 0,
+    "table_blocks": 0,
+    "visual_candidates": 1,
+    "fusion_decisions": 0
+  },
+  "canonical_output": {
+    "figures": 0
+  },
+  "samples": {
+    "extraction_blocks": [],
+    "layout_blocks": [],
+    "table_blocks": []
+  },
+  "visual_candidates": [
+    {
+      "candidate_id": "visual-visual-g9-test-fig-1",
+      "provider": "vlm",
+      "candidate_type": "figure_description",
+      "text": "The figure appears to describe a V-model flow and should be reviewed against the crop before use.",
+      "anchors": {
+        "page": 8,
+        "crop_ref": "output/crops/g9-test-fig-1.png"
+      },
+      "confidence": 0.74,
+      "review_status": "pending_review",
+      "metadata": {
+        "source_review_id": "visual-g9-test-fig-1",
+        "source_type": "visual",
+        "source_id": "visual-g9-test-fig-1",
+        "recommended_tool": "multimodal",
+        "reason": "figure caption exists but visual content requires multimodal review",
+        "source_refs": [
+          {
+            "source_type": "visual",
+            "source_id": "visual-g9-test-fig-1",
+            "page": 8,
+            "anchors": {
+              "page": 8,
+              "crop_ref": "output/crops/g9-test-fig-1.png"
+            }
+          }
+        ],
+        "backend": "fake_vlm_review_test"
+      }
+    }
+  ],
+  "fusion_decisions": []
+}

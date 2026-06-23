@@ -186,8 +186,11 @@ QT-wiki/
 ├── MEMORY.md
 ├── Design/
 │   ├── README.md
+│   ├── TODO.md
 │   ├── PRD-流程问答工作台.md
-│   ├── Todo+Spec-流程问答工作台.md
+│   ├── Spec-Parser-RAG.md
+│   ├── Spec-Chat-Workflow.md
+│   ├── Spec-UI-Workspace.md
 │   ├── dev-memory/
 │   └── old/
 ├── README.md

@@ -1,9 +1,11 @@
 # Todo + Spec: QT Wiki NotebookLM 式 Session MVP
 
-更新时间：2026-06-11
+更新时间：2026-06-12
 状态：Decisioned Draft；作为 Session MVP 详细规格使用
 依据：[PRD-流程问答工作台.md](PRD-流程问答工作台.md)
 上层执行入口：[TODO.md](TODO.md)
+
+> 2026-06-17 同步说明：当前执行入口已收敛到 [TODO.md](TODO.md)、[Spec-Parser-RAG.md](Spec-Parser-RAG.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)、[Spec-UI-Workspace.md](Spec-UI-Workspace.md)。本文件保留 Session MVP 早期 contract 和 NotebookLM 产品判断。最新用户约束为：parser 采用 Notebook-like 自动解析，不要求每份文档先人审；Ask Workspace 左侧只展示文件级 source，不按章节展开；Chat 优先修 citation、intent、route、answer_run 和回答可信度。
 
 ## 1. 已确认产品边界
 
@@ -19,8 +21,46 @@
 - 执行顺序优化：先稳定 Parser Workflow / Evals / Source Contract，再接 Retrieval API，最后接 NotebookLM Session UI，保证前端状态标、Tree、Graph 和 Reference 有真实后端字段支撑。
 - v0.4 UI 打磨原则：左侧不用假 Tree/Graph；中间输入框固定在底部；右侧 MVP 只保留 Note；视觉风格参考 Jianan presentation 的公司汇报感和 Siemens Healthineers 风格。
 - Tool 优先级调整：先执行 [Tool-Parser-RAG-Fusion-Spec.md](Tool-Parser-RAG-Fusion-Spec.md) 中的 QT Parser Core provider fusion、Docling provider、PDF fusion pipeline、OCR/visual provider 和 Hybrid RAG，再回到 v0.4 UI/contract、真实 Tree、Chat flow 和 Graph MVP。
+- 2026-06-12 执行确认：带跳转链接的长总结和当前状态写入 [dev-memory/SESSION-WIP.md](dev-memory/SESSION-WIP.md)，[../CHANGELOG.md](../CHANGELOG.md) 只记录日期级决策与验证结果；下一步按 P0 顺序继续开发，先完成真实后端 Session Query，再拆 UI 用户操作逻辑。
+- 2026-06-12 UI 重规划确认：四页目标框架固定为 `Source Intake -> Review Gate -> Ask Workspace -> Admin / JSON Lab`；当前实现优先选择 C 路线 vertical slice，先把 `Ask Workspace v1` 做成主路径，再把 Review Gate 和 Admin 从问答界面彻底拆走。
+- NotebookLM 对标原则：Source 默认文件级，章节/片段只作为 drill-down；Chat 是研究与问答主界面，不展示 parser/debug 负担；Reference 必须是可读 source anchor card；Note 是记忆沉淀区；processing state 用用户能理解的 Answer Run 状态表达。
+- Chatbox 六环融合原则：Ask Workspace 只保留一条统一 Chat 环路，不拆自由模式/技能模式；P0 的六环最小 contract 由 `/api/session/query` 返回 `answer_run-v0.1`，步骤为 `输入 -> 上下文装配 -> 推理规划 -> 执行 -> 生成 -> 记忆回写`。当前第 6 环先连接前端 Session Note pin-ready，后续再接持久化 session memory、tool registry 和 function calling。
 
 ## 2. 当前执行板
+
+### P0：2026-06-12 继续开发切片
+
+- [x] **P0-01 Session Query API 真实闭环** `Highest`
+  - 用户认可的下一步：先让后端基于当前 selected PEP 真正回答，再继续拆 UI。
+  - 最小设计：新增或完成 `/api/session/query`，请求包含 `question`、`source_scope.mode`、`source_scope.document_ids`、`use_llm`、`top_k`、`top_k_citations`；后端加载 selected docs 的 canonical sections/chunks，走 section retrieval + `AnswerEvidencePackage`，返回兼容现有 Chat 的 answer/citations/trace。
+  - 当前状态：后端 endpoint、request schema、targeted API test 已通过；真实 CT/MI/XP TestClient smoke 已确认 citation document_id/file_name 跟随 selected docs；全量后端 `136 passed`。
+  - 验收：选中 MI PEP 后问“PEP 文档的流程如何操作？”，citation 来自 MI document_id 或 MI file_name；切换 CT/XP 后 citation 随 source scope 切换；证据不足时明确提示缺 evidence。
+
+- [x] **P0-02 Frontend Chat 接入 Session Query** `High`
+  - 最小设计：前端新增 `querySession()`，`handleQuerySubmit` 在有当前 `sessionHandoff.chat.source_scope` 或 selected document 时调用 `/api/session/query`；旧 `/chat/query` 只作为 All Wiki fallback 并在 UI 中标注。
+  - 当前状态：`App/web/src/api.ts` 已新增 `querySession()`；`App.tsx` 的 Chat submit 已优先走当前 PEP source scope；`structured_matches` 已兼容旧 review package summary 和新 `AnswerEvidencePackage`；`App/web npm run build` 通过。
+  - 验收：Chat transcript、evidence panel 和 citation chips 显示当前 PEP source scope；切换 PEP 后不会沿用旧 handoff/evidence。浏览器 smoke 作为 P0-04 继续记录。
+
+- [ ] **P0-03 UI 用户操作逻辑拆页** `High`
+  - 目标框架：把当前混合工作台拆成 `Source Intake -> Review Gate -> Ask Workspace -> Admin / JSON Lab`。Review Gate 先处理 parse/review/quality，Ask Workspace 只处理问答、citation 和 Note。
+  - 当前优先路线：用户确认先做 C 路线 vertical slice，即 `Ask Workspace v1`。该切片先解决最不满意的 Chat、Source、Reference 和 Note 主路径，再继续完整四页重构。
+  - [x] **P0-03A Source 文件级收敛**：左侧默认只展示 CT / MI / XP 三份原始 PEP 文件名、selected 状态、parse 状态和 quality 摘要；Tree/section/chunk 从 Ask Workspace 主路径移出。
+  - [x] **P0-03B Chat / Review 分离**：Ask Workspace 中间区只保留 Chat transcript、回答状态和底部 composer；Review Queue、Evidence/Trace 侧栏、Quality Gate、JSON inspector、Admin controls 从普通问答主路径迁出或折叠。
+  - [x] **P0-03C Answer Run 六步状态**：每次提问形成可读 Answer Run：`输入 -> 上下文装配 -> 推理规划 -> 执行 -> 生成 -> 记忆回写`，前端显示后端返回的每步状态和简短说明；没有后端 `answer_run` 的旧路径保留前端 fallback。
+  - [x] **P0-03D Reference Card**：引用从 `[c1]/[c2]` 改为可读 inline label 和右侧 Reference Card，展示文件名、页码/章节和 quote；后端推荐问题也改为文件名级 source label，避免 `0 History` 噪音。
+  - [x] **P0-03E Note pin 最小闭环**：右侧保留 Session Note，可把当前回答或引用 pin 到 note；publish/export 后移。
+  - 验收：普通用户在 Ask Workspace 首屏能看到当前选择了哪几份 PEP、问答正在执行到哪一步、答案依据了哪段原文；JSON/raw handoff 不进入主操作路径。当前 C 路线首版已通过 build、targeted API test、diff check 和 localhost browser smoke；完整四页拆分仍在 P0-03 后续。
+
+- [x] **P0-04 Real PEP Smoke Evidence** `High`
+  - 最小设计：用当前 CT / MI / XP 三份真实 PEP 各跑 handoff + session query + 浏览器 Chat smoke。
+  - 当前状态：CT / MI / XP 均已完成 localhost browser smoke；点击或选择当前 PEP 后会请求对应 handoff，再由 Chat 调用 `/api/session/query`，evidence panel 显示当前 PEP citation 和 selected-doc trace。
+  - 验收：记录三份 PEP 的 document_id、问题、citation 来源、trace 和结果状态；验证通过后同步 [TODO.md](TODO.md)、[dev-memory/SESSION-WIP.md](dev-memory/SESSION-WIP.md) 与 [../CHANGELOG.md](../CHANGELOG.md)。
+
+- [x] **P0-05 Chat 六环后端最小框架 + 多轮提问修复** `Highest`
+  - 用户核心问题：UI 端要能连续问新问题；后端要真正给出六环步骤，而不是只在前端模拟。
+  - 最小设计：`ChatQueryResponse.answer_run` 返回 `schema_version/run_id/loop/steps`；每个 step 包含 `step_id`、`label`、`status`、`summary`、`inputs`、`outputs`。P0 只覆盖 selected-doc session RAG 主路径：input 接收文本；context 装配 source scope/canonicals/chunks；planning 输出 intent/strategy/retrieval question；execution 输出 retrieval/evidence/citation counts；generation 输出 composer/confidence；memory 输出 pin-ready 与 durable memory 状态。
+  - 当前状态：后端 schema、session query 组装函数、API 回归测试和运行态 smoke 已完成；前端 `QueryResult` 接收 `answer_run`，Answer Run 优先显示后端 steps；Chat transcript 改为多轮追加；窄屏/VS Code 嵌入浏览器下 Chat 面板固定为视口高，composer 保持在面板底部，推荐问题横向滚动，提交按钮增加 pointer fallback。
+  - 验收：连续提交两次问题都命中 `/api/session/query`，页面显示两轮 user/assistant 消息；Answer Run 六步来自后端 `answer-run-v0.1`；第 6 环显示 `deferred`，表达当前已支持 Pin 到 Session Note，持久化 session memory 后续接入。
 
 ### Phase 0：规格重定版
 

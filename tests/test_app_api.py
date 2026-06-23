@@ -43,6 +43,17 @@ def test_health_endpoint():
     assert response.json() == {"status": "ok"}
 
 
+def test_runtime_ready_handles_bootstrap_storage_permission_error(tmp_path):
+    from App import api
+
+    with patch.object(api, "PARSED_DIR", tmp_path), patch("App.api.load_all_pages", return_value=[]), patch(
+        "App.api.bootstrap_pages", side_effect=PermissionError("locked by storage provider")
+    ):
+        pages = api._ensure_runtime_ready(force_bootstrap_if_empty=True)
+
+    assert pages == []
+
+
 def test_ingest_candidates_endpoint():
     from App.api import app
 
@@ -668,3 +679,686 @@ def test_session_handoff_endpoint_returns_real_tree_graph_and_chat_contract(tmp_
     assert payload["chat"]["answer_contract"]["requires_citations"] is True
     assert payload["quality"]["eval_summary"]["fail"] == 0
     assert payload["quality"]["parser_fusion"]["schema_version"] == "parser-fusion-v0.1"
+
+
+def test_session_query_uses_selected_pep_chunks_for_process_question(tmp_dir):
+    from App import api
+    from App.api import app
+    from Tool.contracts.canonical import CanonicalDocument, DocumentMeta, Fragment, Section
+    from Tool.workflows.document_parse import apply_parse_workflow_contract
+
+    parsed_dir = tmp_dir / "parsed"
+    parsed_dir.mkdir()
+    canonical = CanonicalDocument(
+        document=DocumentMeta(
+            document_id="mi-pep",
+            title="0 History / 修改历史",
+            source_path="Raw/mi.pdf",
+            file_name="20260611163304-MI PEP AND 308 11.pdf",
+            source_type="pdf",
+            doc_type="pep",
+        ),
+        sections=[
+            Section(section_id="sec-purpose", title="1 Purpose and scope", level=1, page_range=[5]),
+            Section(section_id="sec-procedure", title="4 Procedure and Requirement", level=1, page_range=[12]),
+            Section(section_id="sec-review", title="5 Review deliverables", level=1, page_range=[14]),
+        ],
+        fragments=[
+            Fragment(
+                fragment_id="frag-purpose",
+                section_id="sec-purpose",
+                fragment_type="paragraph",
+                text="The PEP defines the product development process and the responsibilities for each phase.",
+                anchors={"page": 5, "paragraph_index": 1, "heading_path": ["1 Purpose and scope"]},
+            ),
+            Fragment(
+                fragment_id="frag-procedure",
+                section_id="sec-procedure",
+                fragment_type="paragraph",
+                text="The procedure describes how to operate the PEP workflow: confirm scope, follow development phases, prepare QMP evidence, and review deliverables.",
+                anchors={"page": 12, "paragraph_index": 3, "heading_path": ["4 Procedure and Requirement"]},
+            ),
+            Fragment(
+                fragment_id="frag-review",
+                section_id="sec-review",
+                fragment_type="paragraph",
+                text="Review outputs confirm records and deliverables after the operation workflow has been followed.",
+                anchors={"page": 14, "paragraph_index": 1, "heading_path": ["5 Review deliverables"]},
+            ),
+        ],
+    )
+    apply_parse_workflow_contract(canonical, parser_name="pdf_parser")
+    canonical.save(parsed_dir / "mi-pep.json")
+
+    with patch.object(api, "PARSED_DIR", parsed_dir):
+        response = TestClient(app).post(
+            "/api/session/query",
+            json={
+                "question": "PEP 文档的流程如何操作？",
+                "source_scope": {"mode": "selected_docs", "document_ids": ["mi-pep"]},
+                "use_llm": False,
+            },
+        )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["used_llm"] is False
+    assert payload["citations"]
+    assert payload["citations"][0]["document_id"] == "mi-pep"
+    assert payload["citations"][0]["file_name"] == "20260611163304-MI PEP AND 308 11.pdf"
+    assert any("PEP workflow" in citation["quote"] for citation in payload["citations"])
+    workflow_citation = next(citation for citation in payload["citations"] if "PEP workflow" in citation["quote"])
+    assert workflow_citation["source_context"]["chunk_id"]
+    assert "product development process" in workflow_citation["source_context"]["context_before"]
+    assert "PEP workflow" in workflow_citation["source_context"]["context_text"]
+    assert "Review outputs" in workflow_citation["source_context"]["context_after"]
+    assert "当前选中文档证据" in payload["answer"]
+    assert "文档细节" in payload["answer"]
+    assert "可追溯位置" in payload["answer"]
+    assert "selected_docs" in " > ".join(payload["trace"])
+    assert any("hybrid retriever fanout" in item for item in payload["trace"])
+    assert payload["suggested_questions"]
+    assert all("0 History" not in item for item in payload["suggested_questions"])
+    assert any("MI PEP AND 308 11.pdf" in item for item in payload["suggested_questions"])
+    assert payload["answer_run"]["schema_version"] == "answer-run-v0.1"
+    assert [step["step_id"] for step in payload["answer_run"]["steps"]] == [
+        "input",
+        "context",
+        "planning",
+        "execution",
+        "generation",
+        "memory",
+    ]
+    assert payload["answer_run"]["steps"][1]["outputs"]["chunk_count"] == 3
+    assert payload["answer_run"]["steps"][2]["outputs"]["intent_type"] == "process_explanation"
+    assert payload["answer_run"]["steps"][2]["outputs"]["route_id"] == "process_operation"
+    query_rewrite = payload["answer_run"]["steps"][2]["outputs"]["query_rewrite"]
+    assert query_rewrite["rewritten_query"].startswith("PEP 文档的流程如何操作？")
+    assert "operation steps" in query_rewrite["route_terms"]
+    tool_plan = payload["answer_run"]["steps"][2]["outputs"]["tool_plan"]
+    assert any(item["tool"] == "section_search" for item in tool_plan["planned"])
+    assert any(item["tool"] == "vector_search" and item["reason"] == "persistent vector index not enabled" for item in tool_plan["skipped"])
+    assert any(call["tool"] == "hybrid_retrieve_sections" for call in payload["answer_run"]["steps"][3]["outputs"]["tool_calls"])
+    assert any(call["tool"] == "prioritize_process_operation_evidence" for call in payload["answer_run"]["steps"][3]["outputs"]["tool_calls"])
+    assert payload["answer_run"]["steps"][3]["outputs"]["tool_plan"]["executed"]
+    answer_plan = payload["answer_run"]["steps"][4]["outputs"]["answer_plan"]
+    assert answer_plan["route_id"] == "process_operation"
+    assert any(slot["slot_id"] == "operation_sequence" and slot["citation_ids"] for slot in answer_plan["slots"])
+    answer_style = payload["answer_run"]["steps"][4]["outputs"]["answer_style"]
+    assert answer_style["schema_version"] == "answer-style-v0.1"
+    assert answer_style["numbering"] == "continuous_numbered_steps"
+    assert payload["answer_run"]["steps"][3]["outputs"]["evidence_preview"]
+    assert payload["answer_run"]["steps"][4]["outputs"]["self_check"]["route_label"] == "流程操作办法"
+    assert payload["answer_run"]["steps"][4]["outputs"]["self_check"]["quality_notes"]
+    assert "操作主线" in payload["answer"]
+    assert "\n- 具体做法" not in payload["answer"]
+    assert "\n- 文档细节" not in payload["answer"]
+    assert "References：" not in payload["answer"]
+    assert payload["answer_run"]["steps"][5]["status"] == "deferred"
+
+
+def test_session_query_can_use_selected_llm_model_profile(tmp_dir):
+    from App import api
+    from App.api import app
+    from Tool.contracts.canonical import CanonicalDocument, DocumentMeta, Fragment, Section
+    from Tool.workflows.document_parse import apply_parse_workflow_contract
+
+    parsed_dir = tmp_dir / "parsed"
+    parsed_dir.mkdir()
+    canonical = CanonicalDocument(
+        document=DocumentMeta(
+            document_id="mi-pep",
+            title="MI PEP",
+            source_path="Raw/mi.pdf",
+            file_name="MI PEP.pdf",
+            source_type="pdf",
+            doc_type="pep",
+        ),
+        sections=[Section(section_id="sec-procedure", title="4 Procedure and Requirement", level=1, page_range=[12])],
+        fragments=[
+            Fragment(
+                fragment_id="frag-procedure",
+                section_id="sec-procedure",
+                fragment_type="paragraph",
+                text="The Product Owner prepares QMP evidence during R2 and reviews deliverables.",
+                anchors={"page": 12, "paragraph_index": 3, "heading_path": ["4 Procedure and Requirement"]},
+            ),
+        ],
+    )
+    apply_parse_workflow_contract(canonical, parser_name="pdf_parser")
+    canonical.save(parsed_dir / "mi-pep.json")
+
+    with patch.object(api, "PARSED_DIR", parsed_dir), patch(
+        "Tool.llm.client.ask_llm",
+        return_value="PO 在 R2 阶段准备 QMP evidence 并 review deliverables。[c1]",
+    ) as mock_ask:
+        response = TestClient(app).post(
+            "/api/session/query",
+            json={
+                "question": "R2 阶段 PO 应该做什么？",
+                "source_scope": {"mode": "selected_docs", "document_ids": ["mi-pep"]},
+                "use_llm": True,
+                "model_profile": "azure-gpt-5.4",
+            },
+        )
+
+    payload = response.json()
+    generation_step = next(step for step in payload["answer_run"]["steps"] if step["step_id"] == "generation")
+    assert response.status_code == 200
+    assert payload["used_llm"] is True
+    assert "[c1]" in payload["answer"]
+    assert generation_step["outputs"]["composer"] == "llm_session_answer"
+    assert generation_step["outputs"]["model_profile"] == "azure-gpt-5.4"
+    assert any("azure-gpt-5.4" in item for item in payload["trace"])
+    mock_ask.assert_called_once()
+    assert mock_ask.call_args.kwargs["config_path"] == "config/azure_gpt5_4_config.json"
+    prompt = mock_ask.call_args.args[0]
+    assert "context_hit:" in prompt
+    assert "不要输出独立的'识别与路线'或'References'栏目" in prompt
+    assert "不要只罗列章节标题" in prompt
+
+
+def test_session_query_defaults_to_gpt54_and_supports_gpt55_profile():
+    from App.api import DEFAULT_MODEL_PROFILE, _model_config_path
+    from App.schemas import ChatQueryRequest, SessionQueryRequest
+
+    assert DEFAULT_MODEL_PROFILE == "azure-gpt-5.4"
+    assert ChatQueryRequest(question="流程怎么做？").model_profile == "azure-gpt-5.4"
+    assert SessionQueryRequest(question="流程怎么做？").model_profile == "azure-gpt-5.4"
+    assert _model_config_path("") == "config/azure_gpt5_4_config.json"
+    assert _model_config_path("unknown-profile") == "config/azure_gpt5_4_config.json"
+    assert _model_config_path("azure-gpt-5") == "config/azure_gpt5_config.json"
+    assert _model_config_path("azure-gpt-5.5") == "config/azure_gpt5_5_config.json"
+
+
+def test_process_operation_route_does_not_inject_stage_specific_terms():
+    from App.api import _session_retrieval_question, _session_route_plan
+    from Tool.workflows.answer import parse_question_intent
+
+    intent = parse_question_intent("PEP 文档的流程如何操作？")
+    route_plan = _session_route_plan("PEP 文档的流程如何操作？", intent)
+    retrieval_question = _session_retrieval_question("PEP 文档的流程如何操作？", intent, route_plan).casefold()
+
+    assert route_plan["route_id"] == "process_operation"
+    assert "operation steps" in retrieval_question
+    assert "purpose scope" in retrieval_question
+    assert "process model" in retrieval_question
+    assert "lifecycle" in retrieval_question
+    assert "r2" not in retrieval_question
+    assert "r3" not in retrieval_question
+
+
+def test_session_route_plan_handles_stage_transition_deliverable_and_tailoring_questions():
+    from App.api import _session_answer_plan, _session_query_rewrite, _session_route_plan
+    from Tool.workflows.answer import AnswerEvidencePackage, EvidenceItem, parse_question_intent
+
+    cases = [
+        (
+            "R4到R5之间需要完成哪些工作？",
+            "stage_transition_work",
+            ["stage transition", "R4", "R5", "work items", "entry exit criteria"],
+            {"transition_scope", "work_items", "exit_readiness"},
+        ),
+        (
+            "QMP需要包含哪些内容？谁负责撰写QMP？",
+            "deliverable_detail",
+            ["QMP", "quality management plan", "content", "owner", "responsible", "author"],
+            {"required_contents", "owner_author", "review_approval"},
+        ),
+        (
+            "采用敏捷方法开发，可以裁剪哪些评审？哪些评审不可被裁剪？",
+            "tailoring_policy",
+            ["agile", "tailoring", "review", "cannot be tailored", "mandatory review"],
+            {"agile_applicability", "tailorable_reviews", "non_tailorable_reviews"},
+        ),
+    ]
+
+    for question, expected_route, expected_terms, expected_slots in cases:
+        intent = parse_question_intent(question)
+        route_plan = _session_route_plan(question, intent)
+        query_rewrite = _session_query_rewrite(question, intent, route_plan)
+        plan = _session_answer_plan(
+            route_plan=route_plan,
+            evidence_package=AnswerEvidencePackage(
+                question=question,
+                intent=intent.to_dict(),
+                source_scope={"mode": "selected_docs", "document_ids": ["mi-pep"]},
+                strategy_used="test",
+                evidence_items=[
+                    EvidenceItem(
+                        evidence_id="ev-1",
+                        document_id="mi-pep",
+                        file_name="MI PEP.pdf",
+                        section_id="sec-1",
+                        section_title="Procedure and Requirement",
+                        section_path=["Procedure and Requirement"],
+                        anchor_label="p.12",
+                        quote="R4 to R5 transition work includes QMP content, responsible author, agile tailoring, mandatory review, and exit readiness.",
+                        source_refs=[],
+                        score=9.0,
+                        matched_terms=[],
+                        signals=[],
+                    )
+                ],
+                coverage={"document_count": 1},
+            ),
+            citations=[
+                {
+                    "citation_id": "c1",
+                    "evidence_id": "ev-1",
+                    "document_id": "mi-pep",
+                    "file_name": "MI PEP.pdf",
+                    "fragment_id": "frag-1",
+                    "anchor_label": "p.12",
+                    "quote": "R4 to R5 transition work includes QMP content, responsible author, agile tailoring, mandatory review, and exit readiness.",
+                }
+            ],
+        )
+
+        assert route_plan["route_id"] == expected_route
+        for term in expected_terms:
+            assert term in query_rewrite["route_terms"]
+        assert expected_slots.issubset({slot["slot_id"] for slot in plan["slots"]})
+
+
+def test_process_operation_route_does_not_hardcode_pep_for_generic_docs():
+    from App.api import _session_retrieval_question, _session_route_plan
+    from Tool.workflows.answer import parse_question_intent
+
+    question = "SOP 文档的流程如何操作？"
+    intent = parse_question_intent(question)
+    route_plan = _session_route_plan(question, intent)
+    retrieval_question = _session_retrieval_question(question, intent, route_plan).casefold()
+
+    assert route_plan["route_id"] == "process_operation"
+    assert "pep" not in route_plan["summary"].casefold()
+    assert "pep" not in retrieval_question
+    assert "process document" in retrieval_question
+
+
+def test_process_operation_route_downranks_local_compliance_noise():
+    from App.api import _route_aware_retrieval_result
+    from Tool.chunking.section_chunks import SectionChunk
+    from Tool.retrieval.section_index import RetrievalHit, RetrievalResult
+
+    def chunk(chunk_id: str, title: str, text: str, page: int) -> SectionChunk:
+        return SectionChunk(
+            chunk_id=chunk_id,
+            document_id="mi-pep",
+            document_title="MI PEP",
+            file_name="MI PEP.pdf",
+            section_id=chunk_id,
+            section_title=title,
+            section_path=[title],
+            chunk_type="section",
+            text=text,
+            quote=text[:500],
+            source_refs=[{"document_id": "mi-pep", "fragment_id": f"frag-{chunk_id}", "file_name": "MI PEP.pdf", "anchor_label": f"p.{page}", "quote": text}],
+            anchors={"page": page},
+            signals=[],
+        )
+
+    labeling = RetrievalHit(
+        chunk=chunk(
+            "sec-labeling",
+            "5.13.3 Labeling Requirements 标识要求",
+            "China RoHS hazardous substances labeling requirements and Environment-Friendly Use Period symbols for electrical products.",
+            26,
+        ),
+        score=30.0,
+        matched_terms=["requirements", "scope"],
+    )
+    purpose = RetrievalHit(
+        chunk=chunk(
+            "sec-purpose",
+            "1 Purpose and scope / 目的和适用范围",
+            "This procedure describes the product development workflow and its applicable scope.",
+            5,
+        ),
+        score=12.0,
+        matched_terms=["procedure", "scope"],
+    )
+    design_output = RetrievalHit(
+        chunk=chunk(
+            "sec-design-output",
+            "4.1 V-model/Requirement Tracing / V 型模式/需求跟踪",
+            "Design output procedures shall contain acceptance criteria and support proper functioning of the device.",
+            11,
+        ),
+        score=11.0,
+        matched_terms=["procedure", "requirements"],
+    )
+    transition = RetrievalHit(
+        chunk=chunk(
+            "sec-transition",
+            "7 Provisional solution and backward method / 过渡措施和补救办法",
+            "For on-going projects before design review R5, the QMP must specify how and when transition will be made to the process.",
+            31,
+        ),
+        score=10.0,
+        matched_terms=["review", "process"],
+    )
+    result = RetrievalResult(
+        question="PEP 文档的流程如何操作？",
+        strategy_used="scoped_section_retrieval",
+        source_scope={"mode": "selected_docs", "document_ids": ["mi-pep"]},
+        hits=[labeling, purpose, design_output, transition],
+        evidence_coverage={"documents": ["mi-pep"], "sections": ["sec-labeling", "sec-purpose", "sec-design-output", "sec-transition"], "hit_count": 4},
+        trace=[],
+    )
+
+    reranked = _route_aware_retrieval_result(result, {"route_id": "process_operation"}, top_k=3)
+
+    section_ids = [hit.chunk.section_id for hit in reranked.hits]
+    assert "sec-labeling" not in section_ids
+    assert section_ids == ["sec-purpose", "sec-design-output", "sec-transition"]
+
+
+def test_process_operation_answer_skips_heading_only_evidence():
+    from App.api import _session_process_operation_evidence
+    from Tool.workflows.answer import EvidenceItem
+
+    heading_only = EvidenceItem(
+        evidence_id="ev-heading",
+        document_id="mi-pep",
+        file_name="MI PEP.pdf",
+        section_id="sec-procedure",
+        section_title="4 Procedure& Requirement / 过程和需求",
+        section_path=["4 Procedure& Requirement / 过程和需求"],
+        anchor_label="p.9",
+        quote="4 Procedure& Requirement / 过程和需求 4. Procedure& Requirement / 过程和需求",
+        source_refs=[{"document_id": "mi-pep", "fragment_id": "frag-heading", "file_name": "MI PEP.pdf", "anchor_label": "p.9", "quote": "4 Procedure& Requirement / 过程和需求"}],
+        score=9.0,
+        matched_terms=["procedure"],
+        signals=[],
+    )
+    substantive = EvidenceItem(
+        evidence_id="ev-output",
+        document_id="mi-pep",
+        file_name="MI PEP.pdf",
+        section_id="sec-output",
+        section_title="4.1 V-model/Requirement Tracing / V 型模式/需求跟踪",
+        section_path=["4.1 V-model/Requirement Tracing / V 型模式/需求跟踪"],
+        anchor_label="p.11",
+        quote="Design output procedures shall contain or refer to acceptance criteria and shall ensure proper functioning of the device.",
+        source_refs=[{"document_id": "mi-pep", "fragment_id": "frag-output", "file_name": "MI PEP.pdf", "anchor_label": "p.11", "quote": "Design output procedures shall contain acceptance criteria."}],
+        score=8.0,
+        matched_terms=["procedure"],
+        signals=[],
+    )
+
+    operation_evidence = _session_process_operation_evidence([
+        (heading_only, {"citation_id": "c1"}),
+        (substantive, {"citation_id": "c2"}),
+    ])
+
+    assert [evidence.evidence_id for _label, evidence, _citation in operation_evidence] == ["ev-output"]
+
+
+def test_process_overview_route_handles_conceptual_overview_questions():
+    from App.api import _session_retrieval_question, _session_route_plan
+    from Tool.workflows.answer import parse_question_intent
+
+    question = "PEP 文档的目的和适用范围是什么？"
+    intent = parse_question_intent(question)
+    route_plan = _session_route_plan(question, intent)
+    retrieval_question = _session_retrieval_question(question, intent, route_plan).casefold()
+
+    assert route_plan["route_id"] == "process_overview"
+    assert "purpose scope" in retrieval_question
+    assert "process model" in retrieval_question
+    assert "operation steps" not in retrieval_question
+
+
+def test_process_overview_fallback_uses_evidence_details_without_fixed_framework():
+    from App.api import _session_deterministic_answer
+    from Tool.workflows.answer import AnswerEvidencePackage, EvidenceItem
+
+    evidence = EvidenceItem(
+        evidence_id="ev-purpose",
+        document_id="mi-pep",
+        file_name="MI PEP.pdf",
+        section_id="sec-purpose",
+        section_title="1 Purpose and scope / 目的和适用范围",
+        section_path=["1 Purpose and scope / 目的和适用范围"],
+        anchor_label="p.5",
+        quote="Describes the SSME MI procedure for product development and provides interactions to ensure an integrated high quality process.",
+        source_refs=[{"document_id": "mi-pep", "fragment_id": "frag-purpose", "file_name": "MI PEP.pdf", "anchor_label": "p.5", "quote": "Describes the SSME MI procedure for product development."}],
+        score=9.0,
+        matched_terms=["purpose", "scope"],
+        signals=[],
+    )
+    package = AnswerEvidencePackage(
+        question="风险管理在质量管理体系里扮演什么角色？",
+        intent={},
+        source_scope={"mode": "selected_docs", "document_ids": ["mi-pep"]},
+        strategy_used="test",
+        evidence_items=[evidence],
+        coverage={"document_count": 1},
+    )
+    citations = [
+        {
+            "citation_id": "c1",
+            "evidence_id": "ev-purpose",
+            "document_id": "mi-pep",
+            "fragment_id": "frag-purpose",
+            "file_name": "MI PEP.pdf",
+            "anchor_label": "p.5",
+            "quote": evidence.quote,
+            "source_context": {"context_before": "", "context_text": evidence.quote, "context_after": "Review outputs confirm records."},
+        }
+    ]
+
+    answer = _session_deterministic_answer(
+        package.question,
+        package,
+        citations,
+        route_plan={"route_id": "process_overview", "summary": "overview"},
+    )
+
+    assert "识别与路线" not in answer
+    assert "流程操作拆解" not in answer
+    assert "关键结论" in answer
+    assert "具体含义" in answer
+    assert "文档细节" in answer
+    assert "\n- 具体含义" not in answer
+    assert "\n- 文档细节" not in answer
+    assert "Review outputs" in answer
+
+
+def test_process_overview_route_prioritizes_overview_evidence():
+    from App.api import _route_aware_retrieval_result
+    from Tool.chunking.section_chunks import SectionChunk
+    from Tool.retrieval.section_index import RetrievalHit, RetrievalResult
+
+    def chunk(chunk_id: str, title: str, text: str, page: int) -> SectionChunk:
+        return SectionChunk(
+            chunk_id=chunk_id,
+            document_id="xp-pep",
+            document_title="XP PEP",
+            file_name="XP PEP.pdf",
+            section_id=chunk_id,
+            section_title=title,
+            section_path=[title],
+            chunk_type="section",
+            text=text,
+            quote=text[:500],
+            source_refs=[{"document_id": "xp-pep", "fragment_id": f"frag-{chunk_id}", "file_name": "XP PEP.pdf", "anchor_label": f"p.{page}", "quote": text}],
+            anchors={"page": page},
+            signals=[],
+        )
+
+    local_r2 = RetrievalHit(
+        chunk=chunk(
+            "sec-r2-local",
+            "R2 closer to R3, below procedures must be followed",
+            "Interfaces between Process phases: technical expert should join the phase handover review.",
+            17,
+        ),
+        score=30.0,
+        matched_terms=["procedure", "process"],
+    )
+    purpose = RetrievalHit(
+        chunk=chunk(
+            "sec-purpose",
+            "1 Purpose and scope/目的和适用范围",
+            "This QR describes the product engineering process and product development process scope.",
+            6,
+        ),
+        score=12.0,
+        matched_terms=["purpose", "scope", "process"],
+    )
+    vmodel = RetrievalHit(
+        chunk=chunk(
+            "sec-vmodel",
+            "5.1 V-model/Requirement Tracing/ V型模式/需求跟踪",
+            "The product engineering process follows the V-model and requirement tracing.",
+            9,
+        ),
+        score=8.0,
+        matched_terms=["v-model", "process"],
+    )
+    result = RetrievalResult(
+        question="PEP 文档的流程如何操作？",
+        strategy_used="scoped_section_retrieval",
+        source_scope={"mode": "selected_docs", "document_ids": ["xp-pep"]},
+        hits=[local_r2, purpose, vmodel],
+        evidence_coverage={"documents": ["xp-pep"], "sections": ["sec-r2-local", "sec-purpose", "sec-vmodel"], "hit_count": 3},
+        trace=[],
+    )
+
+    reranked = _route_aware_retrieval_result(result, {"route_id": "process_overview"}, top_k=2)
+
+    assert [hit.chunk.section_id for hit in reranked.hits] == ["sec-purpose", "sec-vmodel"]
+    assert reranked.strategy_used == "process_overview_route_retrieval"
+    assert any("process overview rerank" in item for item in reranked.trace)
+
+
+def test_session_citations_filter_out_of_scope_or_unanchored_evidence():
+    from App.api import _session_citations
+    from Tool.workflows.answer import AnswerEvidencePackage, EvidenceItem
+
+    package = AnswerEvidencePackage(
+        question="R2 阶段 PO 应该做什么？",
+        intent={},
+        source_scope={"mode": "selected_docs", "document_ids": ["mi-pep"]},
+        strategy_used="scoped_section_retrieval",
+        coverage={"documents": ["mi-pep"], "sections": ["sec-r2"], "evidence_count": 4, "missing": []},
+        evidence_items=[
+            EvidenceItem(
+                evidence_id="ev-1",
+                document_id="ct-pep",
+                file_name="CT PEP.pdf",
+                section_id="sec-r2",
+                section_title="R2 CT",
+                section_path=["R2 CT"],
+                anchor_label="p.21",
+                quote="CT evidence must not leak into MI selected-doc answers.",
+                source_refs=[{"document_id": "ct-pep", "fragment_id": "frag-ct", "file_name": "CT PEP.pdf", "anchor_label": "p.21", "quote": "CT evidence"}],
+                score=9.0,
+                matched_terms=["R2"],
+                signals=["stage_r2"],
+            ),
+            EvidenceItem(
+                evidence_id="ev-2",
+                document_id="mi-pep",
+                file_name="MI PEP.pdf",
+                section_id="sec-r2",
+                section_title="R2 MI",
+                section_path=["R2 MI"],
+                anchor_label="",
+                quote="MI evidence without anchor must not become a citation.",
+                source_refs=[{"document_id": "mi-pep", "fragment_id": "frag-no-anchor", "file_name": "MI PEP.pdf", "quote": "MI evidence without anchor"}],
+                score=8.0,
+                matched_terms=["R2"],
+                signals=["stage_r2"],
+            ),
+            EvidenceItem(
+                evidence_id="ev-3",
+                document_id="mi-pep",
+                file_name="MI PEP.pdf",
+                section_id="sec-r2",
+                section_title="R2 MI",
+                section_path=["R2 MI"],
+                anchor_label="p.12",
+                quote="",
+                source_refs=[{"document_id": "mi-pep", "fragment_id": "frag-no-quote", "file_name": "MI PEP.pdf", "anchor_label": "p.12"}],
+                score=7.0,
+                matched_terms=["R2"],
+                signals=["stage_r2"],
+            ),
+            EvidenceItem(
+                evidence_id="ev-4",
+                document_id="mi-pep",
+                file_name="MI PEP.pdf",
+                section_id="sec-r2",
+                section_title="R2 MI",
+                section_path=["R2 MI"],
+                anchor_label="p.13",
+                quote="The Product Owner prepares QMP evidence during R2.",
+                source_refs=[{"document_id": "mi-pep", "fragment_id": "frag-mi", "file_name": "MI PEP.pdf", "anchor_label": "p.13", "quote": "The Product Owner prepares QMP evidence during R2."}],
+                score=6.0,
+                matched_terms=["R2", "PO"],
+                signals=["stage_r2", "role_product_owner", "deliverable_qmp"],
+            ),
+        ],
+    )
+
+    citations = _session_citations(package, limit=5)
+
+    assert [item["document_id"] for item in citations] == ["mi-pep"]
+    assert citations[0]["fragment_id"] == "frag-mi"
+    assert citations[0]["anchor_label"] == "p.13"
+    assert citations[0]["quote"] == "The Product Owner prepares QMP evidence during R2."
+
+
+def test_session_answer_keeps_quote_specific_citation_labels():
+    from App.api import _session_citations, _session_deterministic_answer
+    from Tool.workflows.answer import AnswerEvidencePackage, EvidenceItem
+
+    package = AnswerEvidencePackage(
+        question="R2 阶段 PO 应该做什么？",
+        intent={},
+        source_scope={"mode": "selected_docs", "document_ids": ["mi-pep"]},
+        strategy_used="scoped_section_retrieval",
+        coverage={"documents": ["mi-pep"], "sections": ["sec-r2"], "evidence_count": 2, "missing": []},
+        evidence_items=[
+            EvidenceItem(
+                evidence_id="ev-quote-1",
+                document_id="mi-pep",
+                file_name="MI PEP.pdf",
+                section_id="sec-r2",
+                section_title="R2 MI",
+                section_path=["R2 MI"],
+                anchor_label="p.13",
+                quote="The Product Owner prepares QMP evidence during R2.",
+                source_refs=[{"document_id": "mi-pep", "fragment_id": "frag-mi", "file_name": "MI PEP.pdf", "anchor_label": "p.13", "quote": "The Product Owner prepares QMP evidence during R2."}],
+                score=8.0,
+                matched_terms=["R2", "PO"],
+                signals=["stage_r2", "role_product_owner"],
+            ),
+            EvidenceItem(
+                evidence_id="ev-quote-2",
+                document_id="mi-pep",
+                file_name="MI PEP.pdf",
+                section_id="sec-r2",
+                section_title="R2 MI",
+                section_path=["R2 MI"],
+                anchor_label="p.13",
+                quote="The Product Owner aligns the plan with required records.",
+                source_refs=[{"document_id": "mi-pep", "fragment_id": "frag-mi", "file_name": "MI PEP.pdf", "anchor_label": "p.13", "quote": "The Product Owner aligns the plan with required records."}],
+                score=7.0,
+                matched_terms=["R2", "PO"],
+                signals=["stage_r2", "role_product_owner"],
+            ),
+        ],
+    )
+
+    citations = _session_citations(package, limit=5)
+    answer = _session_deterministic_answer(package.question, package, citations)
+
+    assert [item["citation_id"] for item in citations] == ["c1", "c2"]
+    assert citations[0]["quote"] == "The Product Owner prepares QMP evidence during R2."
+    assert citations[1]["quote"] == "The Product Owner aligns the plan with required records."
+    assert "The Product Owner prepares QMP evidence during R2.”[c1]" in answer
+    assert "The Product Owner aligns the plan with required records.”[c2]" in answer

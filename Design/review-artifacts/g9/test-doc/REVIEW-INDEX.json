@@ -1,0 +1,17 @@
+{
+  "document_id": "doc-20260611142119-76729744",
+  "parsed_path": "C:\\Users\\z004wtps\\OneDrive - Siemens Healthineers\\07 AI related\\A. 自开发\\QT Wiki Agent\\QT-wiki\\Tool\\output\\parsed\\doc-20260611142119-76729744.json",
+  "artifact_dir": "C:\\Users\\z004wtps\\OneDrive - Siemens Healthineers\\07 AI related\\A. 自开发\\QT Wiki Agent\\QT-wiki\\Design\\review-artifacts\\g9\\test-doc",
+  "open_first": [
+    "parse-summary.json",
+    "sections.json",
+    "chunks-preview.json",
+    "session-handoff.json",
+    "retrieval-r2-po.json",
+    "answer-evidence-r2-po.json",
+    "eval-fusion.json",
+    "eval-retrieval-r2-po.json",
+    "eval-answer-grounding.json",
+    "visual-candidates.json"
+  ]
+}

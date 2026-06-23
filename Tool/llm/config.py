@@ -12,6 +12,18 @@ DEFAULT_AZURE_CONFIG = "azure_gpt4o_config.json"
 DEFAULT_GPT5_CONFIG = "azure_gpt5_config.json"
 
 
+def _default_azure_api_key() -> str:
+    default_config_path = REPO_ROOT / "config" / DEFAULT_AZURE_CONFIG
+    if not default_config_path.exists():
+        return ""
+    try:
+        with default_config_path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return str(data.get("azure_api_key") or "")
+
+
 def _candidate_paths(config_path: str | None) -> Iterable[Path]:
     if config_path:
         explicit = Path(config_path)
@@ -56,6 +68,8 @@ def _apply_env_overrides(data: dict[str, Any]) -> dict[str, Any]:
             "AZURE_OPENAI_API_KEY",
             os.getenv("LLM_API_KEY", cfg.get("azure_api_key", "")),
         )
+        if not cfg["azure_api_key"]:
+            cfg["azure_api_key"] = _default_azure_api_key()
         cfg["azure_endpoint"] = os.getenv(
             "AZURE_OPENAI_ENDPOINT",
             cfg.get("azure_endpoint", ""),

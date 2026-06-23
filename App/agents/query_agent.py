@@ -49,16 +49,17 @@ class QueryAgent:
     4. 基于受控上下文回答并返回引用
     """
 
-    def __init__(self):
+    def __init__(self, config_path: str = "config/azure_gpt4o_config.json"):
         self.history: list[dict] = []
         self.llm = None
+        self.config_path = config_path
 
     def _get_llm(self):
         """延迟初始化 LLM 客户端."""
         if self.llm is None:
             from Tool.llm.client import LLMTool
 
-            self.llm = LLMTool()
+            self.llm = LLMTool(self.config_path)
         return self.llm
 
     def query(self, question: str, use_llm: bool = True, interactive: bool = False) -> Answer:

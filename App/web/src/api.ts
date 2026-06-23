@@ -7,6 +7,7 @@ import type {
   MappingMatrixExport,
   QueryResult,
   ReviewPackage,
+  SessionHandoff,
   SlidesOutlineExport,
   WikiPage
 } from "./types";
@@ -102,14 +103,44 @@ export async function getWikiPages(): Promise<WikiPage[]> {
   return payload.items;
 }
 
-export async function queryWiki(question: string, useLlm: boolean, topKPages: number): Promise<QueryResult> {
+export async function getSessionHandoff(documentId: string): Promise<SessionHandoff> {
+  return requestJson<SessionHandoff>(`/api/session/handoff/${encodeURIComponent(documentId)}`);
+}
+
+export async function queryWiki(question: string, useLlm: boolean, topKPages: number, modelProfile: string): Promise<QueryResult> {
   const payload = await requestJson<QueryResult>("/chat/query", {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify({
       question,
       use_llm: useLlm,
+      model_profile: modelProfile,
       top_k_pages: topKPages,
+      top_k_citations: 8
+    })
+  });
+  return {
+    ...payload,
+    trace: payload.trace ?? []
+  };
+}
+
+export async function querySession(
+  question: string,
+  sourceScope: Record<string, unknown>,
+  useLlm: boolean,
+  topK: number,
+  modelProfile: string
+): Promise<QueryResult> {
+  const payload = await requestJson<QueryResult>("/api/session/query", {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify({
+      question,
+      source_scope: sourceScope,
+      use_llm: useLlm,
+      model_profile: modelProfile,
+      top_k: topK,
       top_k_citations: 8
     })
   });

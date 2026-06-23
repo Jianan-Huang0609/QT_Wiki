@@ -25,8 +25,11 @@
 详细 PRD 与任务计划见：
 
 - `Design/PRD-流程问答工作台.md`
-- `Design/Todo+Spec-流程问答工作台.md`
 - `Design/README.md`
+- `Design/TODO.md`
+- `Design/Spec-Parser-RAG.md`
+- `Design/Spec-Chat-Workflow.md`
+- `Design/Spec-UI-Workspace.md`
 - `Design/dev-memory/TODO.md`
 
 ## 1. 项目概述

@@ -13,3 +13,6 @@ wiki/output/proposals/*.json
 wiki/output/index/
 App/output/
 wiki/output/obsidian/
+wiki/output/review_packages/*.json
+App/candidates/candidate-*.json
+Raw/*-demo.pdf

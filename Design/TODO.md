@@ -1,267 +1,245 @@
-\# QT Wiki Design Master TODO
+# QT Wiki System TODO
 
-更新时间：2026-06-11  
-状态：Active，Design 目录唯一阶段计划入口  
-使用方式：计划、方案、TODO 都在本文件按阶段展开；外部文档只作为产品定义、证据或参考附件。
+更新时间：2026-06-23
+状态：Active，系统级 checkbox-first 执行入口
 
-## 0. 操作规则
+使用方式：本文件只放可勾选的系统级开发任务；模块级设计、取舍解释和接口细节写在对应 Spec；历史 Gate / Plan / Review 文档统一归档到 [old/](old/)，仅作为历史背景和证据附件。
 
-Design 目录按“一主多附件”使用，减少 Plan / Review / Spec 混在一起的问题：
+任务字段约定：
 
-1. **本文件是唯一执行入口**  
-  计划、方案、阶段任务、下一步都写在 [TODO.md](TODO.md)。如果某个 Gate 需要展开，也先在本文件对应 Phase 下面展开。
+- `预期功能`：完成后用户或系统会具备的直接能力。
+- `最小方案`：当前切片只做哪些最小实现。
+- `验收`：做到什么可以勾选，优先写测试、smoke、artifact 或可观察 UI 行为。
+- `来源`：对应的模块 Spec。
 
-2. **外部文档只做附件**  
-  PRD / Spec 负责产品定义；Review 负责证据；Notes 负责经验；旧 Plan 文档只作为详细背景，不再作为执行入口。
+## 0. Design 入口
 
-3. **每个阶段固定五件事**  
-  `目标`、`最小方案`、`TODO`、`验收证据`、`参考附件`。这样 G3、G6、Parser 都落到同一个结构里。
+当前 Design 目录采用“一份系统 TODO + 三份模块 Spec + 少量证据附件”的结构。
 
-4. **完成任务后回填本文件**  
-  任务完成时先更新对应 Phase 的 checkbox 和证据，再同步 dev-memory/changelog。附件只有在证据或背景变化时才更新。
+| 类型 | 当前文件 | 用途 |
+| --- | --- | --- |
+| 系统级执行板 | [TODO.md](TODO.md) | 唯一看板，能完成一项就勾掉一项。 |
+| Parser/RAG 模块 Spec | [Spec-Parser-RAG.md](Spec-Parser-RAG.md) | 多文档解析、Markdown/RAG 中间格式、DocumentBlock、表格和 citation。 |
+| Chat 模块 Spec | [Spec-Chat-Workflow.md](Spec-Chat-Workflow.md) | 意图识别、路由、工具执行、Answer Run、LLM composer、memory。 |
+| UI 模块 Spec | [Spec-UI-Workspace.md](Spec-UI-Workspace.md) | Source Intake、Review Gate、Ask Workspace、Admin / JSON Lab。 |
+| 产品定义 | [PRD-流程问答工作台.md](PRD-流程问答工作台.md) | 产品目标、MVP 边界、用户价值。 |
+| 历史附件归档 | [old/](old/) | 查历史决策、人审证据、parser 经验时使用，不作为执行入口。 |
 
 ## 1. 当前主线
 
-- 产品方向：NotebookLM 式 PEP 知识工作台。
-- MVP：正式互动 Session Workspace。
-- 技术骨架：Parser Workflow -> Section Chunk -> Retrieval -> Adaptive Answer -> Session UI。
-- 回答原则：主 Chat 采用自适应模式；核心事实带 reference，输出样式按 question intent 变化。
-- 当前开发焦点：**Phase 3.5 / G9 QT Parser Core 已完成 G9-01 至 G9-08**；下一步进入集中人工 review，然后回到 Phase 5 / G8 v0.4 UI/contract、真实 Tree + Chat flow 和 Graph MVP。
+下一阶段主线是 Release-0 可信 NotebookLM-like 问答闭环。当前执行顺序明确为：先用 `BASE-01` 定尺子，再推进 Chat 的 RouteCatalog / generic fallback / AnswerPlan / Claim Verifier；Parser 先评估现有解析能力是否够用，只补轻量 EvidenceSource adapter；UI 最后围绕稳定 contract 优化。
 
-## 2. 阶段计划
+```text
+BASE-01 smoke 问题集
+  -> Chat 用 RouteCatalog / generic fallback 规划回答
+  -> evidence / citation / claim verifier 守住事实边界
+  -> 现有解析结果通过 EvidenceSource adapter 供 Chat 稳定消费
+  -> UI 展示回答、引用、质量摘要
+  -> CT / MI / XP smoke 证明可用
+```
 
-### Phase 0: Product / Session Contract
+三份 Spec 到 TODO 的映射：
 
-- 目标：固定 NotebookLM 式 PEP Knowledge Workspace 的产品边界和 MVP Session Workspace。
-- 最小方案：先固化 `Session`、`Source Scope`、`Session Note`、`Workflow Studio` 的 contract，再让 UI/API 对齐。
-- 验收证据：[PRD-流程问答工作台.md](PRD-流程问答工作台.md)、[Todo+Spec-流程问答工作台.md](Todo+Spec-流程问答工作台.md)。
-- 参考附件：PRD、Session MVP Spec。
-
-- [ ] **G0-01 固化 Session / Source / Note contract**
-  - 下一步：把当前 PRD/Spec 中的字段收敛成 schema 或前端类型。
-  - 验收：前端、API、RAG scope 使用同一组 contract 名称。
-
-### Phase 1: Parser Contract / Markdown MVP
-
-- 目标：所有 parser 输出统一进入 canonical schema、parse workflow summary 和 eval summary。
-- 最小方案：Markdown / Parser workflow 先跑通；parse summary 能暴露 status、quality、review items。
-- 验收证据：G1/G2 已实现，验证 `89 passed`。
-- 参考附件：[Parser-Workflow-Evals-实施计划.md](Parser-Workflow-Evals-实施计划.md) 作为历史详细背景。
-
-- [x] **G1 Parser Workflow Contract**
-  - 证据：`parse_workflow`、`structure_quality`、`eval_summary`、`review_items` 已进入 API；验证 `89 passed`。
-
-- [x] **G2 Markdown Parser MVP**
-  - 证据：Markdown heading / block / line anchors 可返回；验证 `89 passed`。
-
-- [ ] **G1/G2 人工口径核查**
-  - 下一步：核查 `parse_status`、`warn/fail/na`、Markdown Reference 粒度是否符合产品体验。
-
-### Phase 2: PEP PDF / DOCX Chapterization
-
-- 目标：CT / MI / XP PEP 能形成可问答的章节树、History table、figure candidates 和 source anchors。
-- 最小方案：PDF/DOCX 先做到 text-layer 结构化；OCR/multimodal 进入候选队列。
-- 验收证据：G3 code done，CT/MI/XP smoke；验证 `109 passed`。
-- 参考附件：[Gate3-PEP-PDF-Review.md](Gate3-PEP-PDF-Review.md)、[Pro-Input-Praser.md](Pro-Input-Praser.md)。
-
-- [x] **G3 PDF/DOCX Chapterization MVP**
-  - 证据：History/TOC/figure/7.16 修复已完成；验证 `109 passed`。
-
-- [ ] **G3 PEP PDF 人工核查**
-  - 下一步：核查 CT/MI/XP 的 R2/R3、7.16、History table、figure captions、P2-01 level jump。
-
-### Phase 3: Section Chunk / Retrieval / Visual Queue
-
-- 目标：让章节、表格、图像候选都能进入可检索证据层，并保留 source scope。
-- 最小方案：section chunks + deterministic retrieval + retrieval eval 先服务 G6 AnswerEvidencePackage。
-- 验收证据：G5 done，CT 146 chunks / MI 93 / XP 163，CT 7.16 检索排第一；验证 `109 passed`。
-- 参考附件：[Parser-Workflow-Evals-实施计划.md](Parser-Workflow-Evals-实施计划.md)、[MultiInput-Parser-RAG-Workflow-设计.md](MultiInput-Parser-RAG-Workflow-设计.md)。
-
-- [ ] **G4 Excel table-aware retrieval** `Later`
-  - 下一步：设计 sheet/table/row/cell anchors 和 table retrieval cases。
-
-- [x] **G5 Section Chunk + Retrieval Eval MVP**
-  - 证据：source-scope retrieval、retrieval eval、chunks API、visual review queue 已完成；验证 `109 passed`。
-
-- [ ] **G5 Retrieval 人工核查**
-  - 下一步：核查 R2/PO、7.16、BU scope 的 top hits 是否符合业务直觉。
-
-- [ ] **G7 Visual OCR / Multimodal Pipeline**
-  - 下一步：基于 `visual_review_items` 做 crop / OCR / multimodal candidate pipeline。
-  - 验收：OCR/multimodal 结果只作为 candidate，必须带 source image/crop 和 review status。
-
-### Phase 3.5: QT Parser Core / Provider Fusion / Hybrid RAG
-
-- 目标：把 pypdf、DOCX XML、Docling、OCR/VLM 和 Hybrid RAG 纳入同一个 QT Parser Core，先补底层 extraction / fusion / retrieval contract，再继续 UI v0.4。
-- 最小方案：外部能力以内部 Python provider 进入 Tool core；provider 输出 extraction blocks，fusion layer 合并强项，PEP structure resolver 产出 `CanonicalDocument`，eval gate 约束 parser / retrieval / answer。
-- 验收证据：当前为 planning phase，详细规格见 [Tool-Parser-RAG-Fusion-Spec.md](Tool-Parser-RAG-Fusion-Spec.md)。
-- 参考附件：[Tool-Parser-RAG-Fusion-Spec.md](Tool-Parser-RAG-Fusion-Spec.md)、[MultiInput-Parser-RAG-Workflow-设计.md](MultiInput-Parser-RAG-Workflow-设计.md)、[Pro-Input-Praser.md](Pro-Input-Praser.md)。
-
-- [x] **G9-01 Parser Fusion Core Contract**
-  - 最小方案：定义 `ExtractionBlock`、`LayoutBlock`、`TableBlock`、`VisualCandidate`、`FusionDecision` 和 parser_fusion metadata。
-  - 证据：新增 `Tool/parsers/fusion.py` 和 `tests/test_parser_fusion_contract.py`；`apply_parse_workflow_contract()` 已为现有 parser 写入默认 `parser_fusion` metadata，canonical top-level contract 保持稳定；窄验证 `32 passed`，完整后端验证 `116 passed`。
-
-- [x] **G9-02 Docling Provider Integration**
-  - 最小方案：把 Docling 作为内部 Python extraction provider 接入，输出 layout/table/OCR blocks 参与 fusion。
-  - 证据：新增 `Tool/parsers/providers/docling_provider.py` 和 `tests/test_docling_provider.py`；provider 使用 lazy import + 可注入 converter，能把 Docling-like text/layout/table/picture 信息映射为 `ExtractionBlock`、`LayoutBlock`、`TableBlock`、`VisualCandidate`，并生成 `docling_provider_extraction` metadata；真实 Docling 依赖暂未加入 requirements，按 Spec 需单独确认安装体积、Windows 可用性和许可证；完整后端验证 `119 passed`。
-
-- [x] **G9-03 PDF Fusion Pipeline**
-  - 最小方案：把 pypdf fast text、Docling layout/table/OCR、现有 PEP cleanup 和 structure resolver 融成一个 PDF parser。
-  - 证据：新增 `Tool/parsers/pdf_fusion.py` 和 `tests/test_pdf_fusion_pipeline.py`；`build_pdf_fusion_metadata()` 可把 pypdf canonical fragments 与 Docling layout/text/table/visual output 融合为 `parser_fusion` metadata，`FusionDecision` 记录 page/text 对齐、bbox/reading_order anchor 增强和 table/visual candidate 贡献；`parse_pdf_with_fusion()` 作为可选入口保留现有 `parse_pdf()` 主路径稳定；完整后端验证 `121 passed`。
-
-- [x] **G9-04 DOCX Table/Layout Fusion**
-  - 最小方案：融合 DOCX XML 顺序与 Docling table/layout 信息，补 table/cell anchors、list level metadata、role/deliverable signals。
-  - 证据：新增 `Tool/parsers/docx_fusion.py` 和 `tests/test_docx_fusion_pipeline.py`；`build_docx_fusion_metadata()` 可把 DOCX XML fragments/tables 与 Docling layout/text/table output 融合为 `docx_provider_fusion` metadata，DOCX table anchors 已补 `cell_range`、`row_count`、`column_count` 并进入 source anchors；section chunk table refs 支持 `tbl.1 R1C1:R2C2`，table chunks 可输出 `role_table` / `deliverable_table` signals；完整后端验证 `123 passed`。
-
-- [x] **G9-05 OCR / Multimodal Visual Provider**
-  - 最小方案：把 visual_review_items 和 Docling image blocks 转成 page/crop -> OCR/VLM -> VisualCandidate -> eval/review 的队列。
-  - 证据：新增 `Tool/parsers/providers/visual_provider.py` 和 `tests/test_visual_provider.py`；`build_visual_candidate_queue()` 可把 `visual_review_items` 经注入式 OCR/VLM extractor 转成 `VisualCandidate`，也可并入 Docling image candidates；候选保留 page/bbox/crop anchors、backend、confidence、review_status 和 source_refs，`primary_visual_candidates()` 只放行 reviewed/accepted 或高置信且有 source anchors 的候选；真实 OCR/VLM 依赖暂未加入 requirements；完整后端验证 `126 passed`。
-
-- [x] **G9-06 Retriever Interface + Hybrid RAG**
-  - 最小方案：定义统一 retriever interface，把现有 `retrieve_sections()` 包成 RuleSectionRetriever baseline，再做 full-text、vector、hybrid fusion / deterministic rerank。
-  - 证据：新增 `Tool/retrieval/retrievers.py` 和 `tests/test_retriever_interface.py`；`RuleSectionRetriever` 保留现有 `retrieve_sections()` / `RetrievalResult` contract，`FullTextRetriever` 提供无依赖关键词 overlap baseline，`VectorRetriever` 支持注入 embedding 函数并提供 sparse fallback，`HybridRetriever` 用 deterministic RRF 融合多 backend；`evaluate_retrieval_cases()` 已可接收 pluggable retriever；完整后端验证 `131 passed`。
-
-- [x] **G9-07 Fusion / Retrieval / Answer Eval 扩展**
-  - 最小方案：新增 provider contribution eval、fusion decision eval、retrieval backend comparison eval、answer groundedness/citation completeness eval。
-  - 证据：新增 `Tool/evals/fusion_eval.py`、`Tool/evals/answer_eval.py` 和 `tests/test_g9_eval_extensions.py`；`evaluate_parser_fusion_metadata()` 可报告 provider contribution 与 low-confidence fusion decision，`compare_retrieval_backends()` 可对多个 pluggable retriever 跑同一组 cases 并选择 best backend，`evaluate_answer_grounding()` 可标记 missing citation、unsupported claims 和 evidence gap 未提示风险；完整后端验证 `134 passed`。
-
-- [x] **G9-08 Session API Handoff**
-  - 最小方案：把真实 Tree、Graph、Chat flow 所需 contract 从 Tool 层交给 G8 UI。
-  - 证据：新增 `/api/session/handoff/{document_id}` 和 API contract test；handoff payload 输出 `session-handoff-v0.1`，包含 source summary、真实 section tree、chunk/signal graph seeds、retrieval preview、chat source_scope/request/answer contract 和 quality gates，数据来自 canonical sections/chunks/parse_workflow；完整后端验证 `135 passed`。
-
-### Phase 4: Adaptive Answer Workflow
-
-- 目标：主 Chat 回答基于公司流程证据，自适应输出解释、行动建议、Reference 和缺口提示。
-- 最小方案：先做 deterministic `QuestionIntent`、企业关键词归一和 `AnswerEvidencePackage`，再接 prompt / LLM。
-- 验收证据：当前为 next implementation phase；完成后需要 answer eval 和人工核查。
-- 参考附件：[Gate6-Adaptive-Answer-Workflow-Plan.md](Gate6-Adaptive-Answer-Workflow-Plan.md) 作为历史详细背景，执行内容以本 Phase 为准。
-
-- [x] **G6-01 QuestionIntent 规则解析 MVP**
-  - 最小方案：识别 `role_action_guidance / process_explanation / reference_lookup / bu_comparison / definition_lookup / gap_check`。
-  - 证据：`Tool/workflows/answer.py` 已实现 `parse_question_intent()`；`R2阶段我作为PO应该做什么` -> `role_action_guidance`，`PO` -> `Product Owner`，reference density 为 high；验证 `114 passed`。
-
-- [x] **G6-02 企业关键词归一 MVP**
-  - 最小方案：规则词典 + chunk signals 归一 R 阶段、M milestone、角色、交付物、BU、章节号。
-  - 证据：`normalize_enterprise_terms()` 已覆盖 `PO / Product Owner`、`R2/R3`、`M150`、`QMP`、`7.16`、`CT`，并可合并 chunk signals；验证 `114 passed`。
-
-- [x] **G6-03 AnswerEvidencePackage MVP**
-  - 最小方案：把 `RetrievalResult` 转成可回答证据包，每条 evidence 都有 document / section / anchor / quote。
-  - 证据：`build_answer_evidence_package()` 已把 retrieval hits 转为带 document / section / anchor / quote / supports 的 evidence items；History/template change 和缺 source_refs hit 不作为 primary evidence，证据不足写入 `missing_evidence`；验证 `114 passed`。
-
-- [ ] **G6-04 Adaptive Prompt Builder**
-  - 最小方案：prompt 只消费 `intent + enterprise keywords + evidence package + style policy`。
-  - 验收：核心事实有 citation；短问题短答，复杂问题才展开；输出不过度模板化。
-
-- [ ] **G6-05 Answer Evals MVP**
-  - 最小方案：检查 groundedness、citation completeness、abstention correctness、adaptive format、keyword normalization。
-  - 验收：unsupported claim / missing citation 能进入 eval findings。
-
-- [ ] **G6 Answer 人工核查**
-  - 下一步：核查自适应格式是否自然；reference 是否足够支撑公司流程依据。
-
-### Phase 5: NotebookLM Session UI / API
-
-- 目标：把 parser / retrieval / answer package 接到正式互动 Session Workspace。
-- 最小方案：等待 G9 Tool Fusion 提供真实 source/tree/graph/evidence contract 后，再做 Session Source Base、真实 Tree/Graph、GPT/NotebookLM 式 Chat transcript 和右侧 Note-only。
-- 验收证据：v0.2 主 Chat 原型已验证；v0.3 三栏 Session Workspace skeleton 已本地构建并通过 localhost `/chat/query` smoke；v0.4 PRD/Spec 已记录反馈修订方向。
-- 参考附件：[Todo+Spec-流程问答工作台.md](Todo+Spec-流程问答工作台.md)。
-
-- [ ] **G8-01 Session Query API**
-  - 下一步：输入 question + source scope，返回 answer package + citations + retrieval trace。
-
-- [x] **G8-02 NotebookLM 三栏 Session UI skeleton**
-  - 最小方案：左 Sources/Tree/Graph，中 Session Chat，右 Session Note/Workflow Studio；复用现有上传、模型选择、LLM 开关、推荐问题、citation 和后台入口。
-  - 证据：`App/web/src/App.tsx`、`App/web/src/styles.css` 已切到 Session Workspace shell；`npm run build` 通过；localhost 关 LLM 后推荐问题真实调用 `/chat/query`，Reference 面板回填引用，浏览器 console 无 error。
-  - 后续：把 Tree/Graph/Note 从静态预览接入真实 Session contract、AnswerEvidencePackage 和 section graph。
-
-- [x] **G8-03 UI v0.4 PRD/TODO 打磨**
-  - 最小方案：吸收 UI 评审反馈，修订 PRD 与 Session Spec，明确左侧 Base、真实 Tree/Graph、Chat transcript、Note-only、企业视觉系统和开源参考取舍。
-  - 证据：[PRD-流程问答工作台.md](PRD-流程问答工作台.md) 已更新到 v0.4；[Todo+Spec-流程问答工作台.md](Todo+Spec-流程问答工作台.md) 已补 G8-03 到 G8-09 任务和 Tree/Graph/Note contract。
-
-- [ ] **G8-04 Session Source Base 实现**
-  - 最小方案：Sources 按当前 session scope 展示 selected/excluded/session-only/parsed/failed/low confidence 状态。
-  - 验收：切换 session 或 source scope 后，左侧 Sources、顶部 scope 和 query request 使用同一组 source ids。
-
-- [ ] **G8-05 真实 Tree / Graph 实现**
-  - 最小方案：Tree 从 parser/sections/chunks 数据生成；Graph 从 document relation / extracted relation / answer evidence 生成。
-  - 验收：没有真实数据时显示空状态；点击节点或边能联动 Tree、citation 或 source chip。
-
-- [ ] **G8-06 Chat transcript + bottom composer**
-  - 最小方案：中间区域改为上方消息流、底部固定输入；回答追加到 transcript，支持 citation chips 和 pin to note。
-  - 验收：提问后输入框仍在底部，回答在上方消息流，推荐问题不挤占主流程。
-
-- [ ] **G8-07 Note-only right panel + visual system**
-  - 最小方案：右侧只保留 Session Note；移除 Admin/Reference/Workflow tabs；按 Jianan presentation / Siemens Healthineers 风格打磨颜色、密度和控件状态。
-  - 验收：桌面首屏可截图汇报，移动端无重叠；右侧 note 随 session 切换。
-
-## 3. 阶段状态速览
-
-| Gate | 所属阶段 | 状态 | 当前证据 | 下一步 |
-| --- | --- | --- | --- | --- |
-| G0 | Phase 0 | In progress | PRD / Spec 已存在 | 固化 session/source/note contract |
-| G1 | Phase 1 | Done | API 已返回 workflow/eval/review 字段；验证 `89 passed` | 人工核查状态口径 |
-| G2 | Phase 1 | Done | Markdown heading / block / line anchors；验证 `89 passed` | 人工核查 Reference 粒度 |
-| G3 | Phase 2 | Code done, review pending | CT/MI/XP PEP smoke；验证 `109 passed` | 人工核查 P2-01 level jump 和关键章节树 |
-| G4 | Phase 3 | Later | XLSX parser 基础存在 | 设计 table anchors 和 retrieval cases |
-| G5 | Phase 3 | Done | CT 146 chunks / MI 93 / XP 163；验证 `109 passed` | 接入 G6 EvidencePackage |
-| G6 | Phase 4 | In progress | G6-01/02/03 已实现；`compileall`、`pytest`、`git diff --check`、diagnostics 通过，当前 `114 passed` | 实现 G6-04 + G6-05 |
-| G7 | Phase 3 | Queue MVP done | `visual_review_items` 已返回 CT 2 / MI 1 / XP 5 | 做 crop / OCR / multimodal candidate pipeline |
-| G8 | Phase 5 | In progress | v0.4 PRD/Spec 已吸收 UI 评审反馈；v0.3 skeleton 已通过 build 与 localhost smoke | 实现 Session Source Base、真实 Tree/Graph、Chat transcript 和 Note-only 右栏 |
-| G9 | Phase 3.5 | In progress | G9-01 Parser Fusion Core Contract、G9-02 Docling Provider Integration 和 G9-03 PDF Fusion Pipeline 已完成；[Tool-Parser-RAG-Fusion-Spec.md](Tool-Parser-RAG-Fusion-Spec.md) 定义后续 DOCX table/layout fusion、OCR/visual provider 和 Hybrid RAG 计划 | 进入 G9-04 DOCX Table/Layout Fusion，或按产品优先级切到 G9-06 Retriever Interface + Hybrid RAG |
-
-## 4. 附件地图
-
-计划和方案以第 2 节阶段计划为准；下表只说明外部文档作为附件时的用途。
-
-| 文件 | 角色 | 何时看 |
+| Spec | 关键设计 | TODO 主线 |
 | --- | --- | --- |
-| [TODO.md](TODO.md) | 唯一阶段计划入口 | 每次开始开发先看 |
-| [README.md](README.md) | 附件导航 | 找文件时看 |
-| [PRD-流程问答工作台.md](PRD-流程问答工作台.md) | 产品定义 | 产品边界不清时看 |
-| [Todo+Spec-流程问答工作台.md](Todo+Spec-流程问答工作台.md) | Session MVP 详细规格 | 前端/Session contract 下钻时看 |
-| [Tool-Parser-RAG-Fusion-Spec.md](Tool-Parser-RAG-Fusion-Spec.md) | Tool 融合详细规格 | 做 QT Parser Core、provider fusion、Docling provider、PDF fusion、OCR/visual provider、Hybrid RAG 时看 |
-| [MultiInput-Parser-RAG-Workflow-设计.md](MultiInput-Parser-RAG-Workflow-设计.md) | Parser/RAG 架构背景 | 需要理解技术路线时看 |
-| [Parser-Workflow-Evals-实施计划.md](Parser-Workflow-Evals-实施计划.md) | 历史详细计划附件 | 查 parser/evals 细节时看；执行以本 TODO 为准 |
-| [Gate3-PEP-PDF-Review.md](Gate3-PEP-PDF-Review.md) | G3 证据附件 | 核查 CT/MI/XP 章节树时看 |
-| [Gate6-Adaptive-Answer-Workflow-Plan.md](Gate6-Adaptive-Answer-Workflow-Plan.md) | G6 历史详细方案附件 | 查 G6 背景时看；执行以本 TODO Phase 4 为准 |
-| [Pro-Input-Praser.md](Pro-Input-Praser.md) | Parser 经验沉淀 | 处理 OCR/multimodal/parser 边界时看 |
-| [dev-memory/](dev-memory/) | 开发记忆和会话交接 | 长会话恢复时看 |
-| [old/](old/) | 旧框架归档 | 查旧 upload-approval / regulation navigator 思路时看 |
+| [Spec-Parser-RAG.md](Spec-Parser-RAG.md) | Notebook-like 自动解析、DocumentBlock、RAG artifacts、表格/图片质量状态 | 当前只落 `PARSER-MIN-*`：评估现有 parser、补 EvidenceSource adapter；完整 artifacts/provider 后置。 |
+| [Spec-Chat-Workflow.md](Spec-Chat-Workflow.md) | 8 步 runtime、RouteCatalog、generic fallback、AnswerPlan、Claim Verifier、Session Memory | `CHAT-*` 产出可审计回答链路。 |
+| [Spec-UI-Workspace.md](Spec-UI-Workspace.md) | Source Intake / Review Gate / Ask Workspace / Admin | `UI-*` 产出普通用户主路径和开发调试路径分离的工作台。 |
 
-## 4.1 当前文件角色与命名判断
+### 1.1 当前最高优先级
 
-当前先采用“软整理”，保留现有文件名，避免一次性改名导致链接碎掉。后续优先把计划和方案写回本文件；只有证据、经验、产品定义或很长的技术背景才新增外部文档。
+| 顺序 | 任务 | 优先级判断 |
+| --- | --- | --- |
+| 1 | `BASE-01` | 先定 CT / MI / XP smoke 尺子，后续 Chat、Parser、UI 都用同一组问题验收。 |
+| 2 | `CHAT-04` / `CHAT-06` / `CHAT-07` | 当前最影响可信度：未知问题 fallback、AnswerPlan slot、Claim Verifier；`CHAT-03` 已完成。 |
+| 3 | `R0-01` / `R0-02` | 用单文档和高频专业问题证明 Chat 主链可用。 |
+| 4 | `PARSER-MIN-01` / `PARSER-MIN-02` / `PARSER-MIN-03` | 先判断现有 parser 是否够用，只补 Chat 必需的轻量 evidence view。 |
+| 5 | `UI-02` | 围绕稳定后的 Chat + evidence contract 修主问答体验。 |
 
-| 类型 | 命名规则 | 当前对应文件 | 用途 |
-| --- | --- | --- | --- |
-| 总入口 | `TODO.md` | [TODO.md](TODO.md) | 唯一阶段计划入口 |
-| 产品定义 | `PRD-<主题>.md` | [PRD-流程问答工作台.md](PRD-流程问答工作台.md) | 产品边界和用户价值 |
-| 详细规格 | `Spec-<主题>.md` 或保留当前 `Todo+Spec-<主题>.md` | [Todo+Spec-流程问答工作台.md](Todo+Spec-流程问答工作台.md) | Session MVP 详细规格 |
-| 架构研究 | `<领域>-Workflow-设计.md` | [MultiInput-Parser-RAG-Workflow-设计.md](MultiInput-Parser-RAG-Workflow-设计.md) | 技术路线和架构原则 |
-| 分支实施计划 | 优先写入本文件 Phase；必要时才用 `Gate<N>-<主题>-Plan.md` 做附件 | [Parser-Workflow-Evals-实施计划.md](Parser-Workflow-Evals-实施计划.md)、[Gate6-Adaptive-Answer-Workflow-Plan.md](Gate6-Adaptive-Answer-Workflow-Plan.md) | 历史详细背景，执行以本 TODO 为准 |
-| Gate 证据报告 | `Gate<N>-<主题>-Review.md` | [Gate3-PEP-PDF-Review.md](Gate3-PEP-PDF-Review.md) | 人工核查、smoke、样例证据 |
-| 经验方法 | `<主题>-Notes.md` 或当前经验名 | [Pro-Input-Praser.md](Pro-Input-Praser.md) | 经验、难点、方法沉淀 |
-| 归档 | `old/<主题>/` | [old/](old/) | 旧路线，只查阅不维护 |
+## 2. 已完成证据
 
-后续如果要正式改名，建议单独做一次“Design 文件迁移”任务：先改文件名，再批量更新链接，再跑 `git diff --check`。当前阶段先不改名。
+- [x] **DOC-01 建立系统级 TODO + 模块级 Spec 框架**
+  - 证据：本文件、[Spec-Parser-RAG.md](Spec-Parser-RAG.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)、[Spec-UI-Workspace.md](Spec-UI-Workspace.md)。
 
-## 5. 人工核查队列
+- [x] **DOC-02 物理归档历史附件**
+  - 证据：2026-06-23 已把历史 plan/review/notes 从 Design 根目录移入 [old/](old/)；Design 根目录保留 [README.md](README.md)、[TODO.md](TODO.md)、[PRD-流程问答工作台.md](PRD-流程问答工作台.md)、三份 Spec 和目录型证据/记忆入口。
 
-人工核查任务已经放回第 2 节对应 Phase；这里仅保留跨阶段提醒。
+- [x] **DONE-CHAT-01 Citation validation 首切片**
+  - 证据：`/api/session/query` 已校验 selected source scope、document identity、quote、anchor，并把 citation validation summary 写入 answer_run；相关回归测试已覆盖 scope 外证据、缺 anchor、缺 quote 和 quote-specific citation label。
 
-- [ ] 核查完成后，把结论写回对应 Phase 的 `验收证据` 或 checkbox 说明。
-- [ ] 证据较长时，追加到对应 Review / Notes 附件，并在本文件保留一句证据摘要。
+- [x] **DONE-CHAT-02 Reference source context 首切片**
+  - 证据：citation payload 已带 `source_context`，Reference Viewer 可展开引用前文、命中上下文和引用后文；后端相关测试和 `App/web npm run build` 已通过。
 
-## 6. Later / Backlog
+- [x] **DONE-CHAT-03 Query Rewrite / ToolPlan / AnswerPlan v0.1 首切片**
+  - 证据：`/api/session/query` 已写入 `query-rewrite-v0.1`、`tool-plan-v0.1`、`answer-plan-v0.1`；`process_operation/stage_transition_work/deliverable_detail/tailoring_policy` 已有首批 route 和 slot map。
 
-- [ ] Feishu CLI adapter。
-- [ ] Teachany 类训练交互。
-- [ ] Slides / PPT outline。
-- [ ] 多用户权限与 SharePoint / Blob 接入。
+## 3. 当前执行计划
 
-## 7. 收尾规则
+### Phase 0: Release-0 验收基线
 
-- [ ] 完成代码或文档变更后，同步 [dev-memory/SESSION-WIP.md](dev-memory/SESSION-WIP.md)。
-- [ ] 重大或已验证变化同步 [CHANGELOG.md](../CHANGELOG.md)。
-- [ ] Gate 状态变化同步本文件第 3 节。
-- [ ] 可验证任务必须记录测试、诊断或人工核查证据。
+- [x] **BASE-01 固化 CT / MI / XP smoke 问题集** `Highest`
+  - 预期功能：项目有一组固定问题可以反复验证 selected-doc 问答、引用、route、fallback 和 UI 展示是否可信。
+  - 最小方案：固定 CT / MI / XP 的问题样例：流程如何操作、R2/PO、7.16、R4->R5、QMP、敏捷裁剪、证据缺口和未知问题。
+  - 验收：每个问题记录期望 source scope、route、最低 citation 要求、人工可读判断和失败记录位置。
+  - 证据：已新增 `Tool.evals.release0_smoke`，包含 8 条 `release0-smoke-cases-v0.1` case，覆盖 CT / MI / XP 单文档、未知 fallback 和多文档对比；失败记录入口为 [review-artifacts/release0-smoke-failures.md](review-artifacts/release0-smoke-failures.md)。验证 `..\.venv\Scripts\python.exe -m pytest tests/test_release0_smoke_cases.py -q` 为 `2 passed`。
+
+### Phase 1: Chat Runtime 可信回答骨架
+
+- [x] **CHAT-03 抽出轻量 RouteCatalog** `Highest`
+  - 预期功能：系统用统一 catalog 管理高频/高风险问题策略，包括 query terms、evidence needs、answer slots、risk level 和 citation policy。
+  - 最小方案：先迁移现有 `process_operation/stage_transition_work/deliverable_detail/tailoring_policy/reference_lookup/table_lookup/bu_comparison/gap_check/summary_request/generic_rag` 的策略字段。
+  - 验收：现有 route 行为和测试不回退；Query Rewrite、ToolPlan、AnswerPlan 可从 catalog 读取策略。
+  - 证据：已新增 `Tool.workflows.route_catalog`，并让 `/api/session/query` 的 route plan metadata、query rewrite、ToolPlan `route_strategy`、retrieval top_k、route rerank、AnswerPlan slots 和 answer shape 读取 catalog；新增 `tests/test_route_catalog.py` 覆盖 Release-0 route 覆盖率和 API helper 接入。验证 `tests/test_route_catalog.py tests/test_app_api.py tests/test_answer_workflow.py tests/test_release0_smoke_cases.py tests/test_retriever_interface.py -q` 为 `49 passed, 1 warning`，`compileall` 和 `git diff --check` 通过。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **CHAT-04 Generic RAG fallback + route evolution eval** `Highest`
+  - 预期功能：未知问题也能得到有引用、有边界、有不确定性说明的回答；反复失败的问题可以沉淀为 eval case 和后续 RouteCatalog entry。
+  - 最小方案：低置信、未知 route、LLM schema 校验失败时进入 `generic_rag`，输出 fallback reason、retrieved evidence、uncertainty 和 citation coverage。
+  - 验收：fallback 返回短结论、支撑证据、不确定性提示和 citation coverage；新增 route 前先补 eval case。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **CHAT-06 AnswerPlan v0.2 + evidence-bound slots** `Highest`
+  - 预期功能：回答先形成结构化 slots，filled slot 必须绑定 evidence/citation；无证据的 slot 明确进入 missing evidence。
+  - 最小方案：Planner 基于 `RouteCatalog + EvidencePackage` 生成 `answer-plan-v0.2`；composer 只消费 AnswerPlan、citations、source_context 和 AnswerStyle。
+  - 验收：`process_operation/stage_transition_work/deliverable_detail/tailoring_policy/generic_rag` 均能生成 slots；slot 绑定的 citation_ids/evidence_ids 可反查。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **CHAT-07 Claim Verifier report** `Highest`
+  - 预期功能：系统可以识别回答中的关键事实 claim，并标记 unsupported 或 weakly-supported claim。
+  - 最小方案：生成后抽取关键 claim，检查每个 claim 是否由 quote/source_context 支持，并写入 answer_run 和 UI 摘要。
+  - 验收：人为构造 unsupported claim 的测试能被标记；UI 展示 claim verifier 的通过/警告摘要。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **CHAT-01 伴随式抽取 ChatWorkflowRunner**
+  - 预期功能：`/api/session/query` 的核心步骤逐步从 API 函数中抽出，形成可测试的 runner，但不为重构而打断回答质量主线。
+  - 最小方案：在实现 RouteCatalog、generic fallback、AnswerPlan、Claim Verifier 时，把对应 intent、retrieval、evidence、answer_run 组装逻辑迁到 runner 或独立 helper。
+  - 验收：API 仍返回兼容 `ChatQueryResponse`；新增/迁移逻辑都有窄测试；answer_run 每一步来自真实中间状态。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **CHAT-05 LLM structured Router schema harness**
+  - 预期功能：真实 LLM 接入前，系统可以用 fixture/mock 验证 `intent-route-v0.2` 的结构化输出、校验规则和降级路径。
+  - 最小方案：校验 route 是否存在、confidence、entities、evidence_needs、answer_slots 和 fallback_reason。
+  - 验收：R4/R5、QMP、敏捷裁剪和未知问题 fixture 通过 schema；非法 route 或低置信输出降级到 `generic_rag`。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **CHAT-02 Session State / follow-up contract**
+  - 预期功能：用户连续追问时，系统能读取上一轮问题、答案摘要、citations 和 source scope history，并判断本轮是否是 follow-up。
+  - 最小方案：在 runner context step 记录 previous question、previous answer summary、selected docs history 和 `is_follow_up`。
+  - 验收：连续两问时后端能区分新问题和追问；answer_run context step 展示上一轮摘要和当前 source scope。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **CHAT-08 Session Memory Store** `Later`
+  - 预期功能：系统可以持久化 session turns、pinned answers、pinned references、confirmed terms、tool runs 和 source scope history。
+  - 最小方案：先把 answer_run memory step 从 `deferred` 改成可写入的最小 store。
+  - 验收：刷新页面后仍可恢复本 session 的 turns、pinned references 和 source scope history。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+### Phase 2: Parser / RAG 最小必要底座
+
+- [ ] **PARSER-MIN-01 当前解析能力 smoke 评估** `Highest`
+  - 预期功能：团队可以判断现有 parser 输出是否足够支撑 Release-0 Chat 问答，避免先引入新重依赖。
+  - 最小方案：用 `BASE-01` 问题集检查当前 `CanonicalDocument / SectionChunk / source_refs / source_context / quality` 信息是否足够回答普通流程、R2/PO、7.16、R4->R5、QMP、敏捷裁剪和证据缺口问题。
+  - 验收：形成失败分类：Chat route/query/answer 可修、chunk/source_context 可修、parser 结构缺口、表格缺口、扫描/OCR 缺口。
+  - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)。
+
+- [ ] **PARSER-MIN-02 EvidenceSource adapter** `Highest`
+  - 预期功能：Chat、citation、AnswerPlan、Claim Verifier 和 Reference UI 使用同一条轻量 evidence view，不再各自拼 parser 零散字段。
+  - 最小方案：从当前 `SectionChunk + source_refs + parse quality` 适配出 `evidence_id/document_id/file_name/chunk_id/section_id/heading_path/anchor_label/quote/source_context/quality_warning/usable_as_primary_evidence`。
+  - 验收：AnswerPlan slot、citation、claim verifier 和 Reference Card 可通过同一个 `evidence_id` 反查同一段 quote/source_context。
+  - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)。
+
+- [ ] **PARSER-MIN-03 轻量文档状态与质量警告**
+  - 预期功能：系统可以区分整份文档是否可问，以及某些证据是否适合作为 primary evidence。
+  - 最小方案：先复用现有 parse summary/review items，输出 `ready / limited / needs_review / ocr_required / failed` 和 evidence-level warning；暂不实现完整 Review Gate 状态机。
+  - 验收：`needs_review` 不再等同于整份文档不可问；低置信表格/视觉/OCR 内容不会混入 primary evidence。
+  - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)。
+
+### Phase 3: UI Workspace 主体验
+
+- [ ] **UI-01 Source Intake 基线**
+  - 预期功能：用户进入 Source Intake 后，可以看到所有可用资料、当前选中的资料、解析状态和质量提示，并能切换本轮问答的 source scope。
+  - 最小方案：上传、recent runs、文件级 source cards、parse status、quality chip。
+  - 验收：Source 默认文件级；用户能清楚看到哪些资料可问、哪些资料已选、哪些资料有解析风险。
+  - 来源：[Spec-UI-Workspace.md](Spec-UI-Workspace.md)。
+
+- [ ] **UI-02 Ask Workspace v2** `Highest`
+  - 预期功能：用户可以在一个干净的问答工作区中选择资料、连续提问、查看引用、展开原文上下文，并把答案或引用 pin 到 Session Note。
+  - 最小方案：左侧 source scope，中间 transcript + composer，右侧 Reference + Session Note；debug/admin 信息移出普通主路径。
+  - 验收：连续两问、citation 点击、Reference 展开、pin note 可用；普通问答路径不展示 JSON/debug/admin。
+  - 来源：[Spec-UI-Workspace.md](Spec-UI-Workspace.md)。
+
+- [ ] **UI-03 Review Gate 页面**
+  - 预期功能：用户或开发者可以集中查看低置信 block、table、visual candidate、quality gates 和 evidence preview，并决定哪些内容需要修复或排除。
+  - 最小方案：展示 parse status、quality gates、Review Queue、Visual/Table candidates、Evidence preview。
+  - 验收：普通文档可先进入 Ask Workspace；风险项可进入 review；review/debug 信息不打断普通问答。
+  - 来源：[Spec-UI-Workspace.md](Spec-UI-Workspace.md)。
+
+- [ ] **UI-04 Admin / JSON Lab 页面**
+  - 预期功能：开发者可以查看 raw handoff、parse workflow、blocks/chunks JSON、tool traces、eval reports 和 static snapshot export。
+  - 最小方案：把 handoff、parse artifacts、answer_run/tool trace、eval report 集中到 Admin / JSON Lab。
+  - 验收：开发调试能力保留；普通 Ask Workspace 不被内部 JSON 和 skipped tool reason 污染。
+  - 来源：[Spec-UI-Workspace.md](Spec-UI-Workspace.md)。
+
+### Phase 4: Release-0 真实闭环 Smoke
+
+- [ ] **R0-01 单文档可信问答 smoke** `Highest`
+  - 预期功能：选中单个 PEP 后，用户能得到只基于该文档的可信回答和可展开引用。
+  - 最小方案：对 CT / MI / XP 分别测试流程如何操作、R2/PO、7.16。
+  - 验收：route、tool plan、citations、answer plan、self/claim check 都写入 answer_run；Reference 不串文档。
+
+- [ ] **R0-02 高频专业问题 smoke** `Highest`
+  - 预期功能：R4->R5、QMP、敏捷裁剪这三类高频专业问题可以走 catalog route，并输出按问题形态组织的答案。
+  - 最小方案：覆盖 `stage_transition_work/deliverable_detail/tailoring_policy` 三类 route。
+  - 验收：引用来自当前选中文档；缺证据时明确提示；slot map 不退回章节罗列。
+
+- [ ] **R0-03 未知问题 fallback smoke**
+  - 预期功能：不在 catalog 的真实业务问法也能走 `generic_rag`，给出有引用、有边界的回答。
+  - 最小方案：选择 1-2 个未知问题，记录 fallback reason、retrieved evidence、uncertainty 和 citation coverage。
+  - 验收：fallback 输出可读短结论、引用和不确定性；失败样本进入 route evolution eval。
+
+- [ ] **R0-04 多文档 / BU 对比 smoke**
+  - 预期功能：用户选择多份资料时，系统能按文档分组引用，并区分相同点、差异点和证据缺口。
+  - 最小方案：对 CT / MI / XP 询问同一阶段、交付物或评审要求的差异。
+  - 验收：回答按文档分组 citation；source scope 不串线；unsupported comparison 被标记为证据缺口。
+
+## 4. 验收节奏
+
+- 每完成 1 个模块切片，先跑对应窄测试。
+- 每完成 2-3 个相关任务，跑一次 `pytest` 相关子集和 `App/web npm run build`。
+- Parser/Chat 涉及真实质量时，补一条 eval 或 smoke case。
+- UI 涉及主流程时，补浏览器 smoke 和截图检查。
+- 文档或状态变化后，同步 [dev-memory/SESSION-WIP.md](dev-memory/SESSION-WIP.md) 与 [../CHANGELOG.md](../CHANGELOG.md)。
+
+## 5. Later / Backlog
+
+- [ ] **LATER-00 完整 DocumentBlock / RAG artifacts bundle** `Later`
+  - 预期功能：每份解析后的文档都有稳定 `document.md / blocks.json / chunks.json / quality_report.json`，供 Review Gate、Admin、多 provider 对比和长期 RAG 复用。
+  - 触发条件：`PARSER-MIN-01` 证明当前 parsed canonical/chunks/source_refs 难以稳定支撑引用回跳、表格定位、多 provider 对比或 UI 文档审阅。
+
+- [ ] **LATER-01 Persistent vector DB / embedding cache** `Later`
+  - 预期功能：系统可以复用持久 chunk index 和 embedding cache 提升多文档检索能力。
+  - 触发条件：Release-0 selected-doc lexical/hybrid smoke 稳定后再启动。
+
+- [ ] **LATER-02 Docling / Marker / MinerU provider 评估** `Later`
+  - 预期功能：当现有 parser 不够用时，可以按失败类型评估结构化 provider，而不是直接把重依赖纳入主链路。
+  - 触发条件：`PARSER-MIN-01` 发现 reading order、layout、表格、中文复杂 PDF、扫描件或公式/图片是 Release-0 阻塞；评估前确认 Windows、芯片/本地部署、安装体积、许可证、离线可用性和运行成本。
+
+- [ ] **LATER-03 OCR/VLM crop pipeline 真实依赖评估** `Later`
+  - 预期功能：图片、图表和扫描内容可以进入 visual candidate review，再决定是否进入 evidence。
+  - 触发条件：Review Gate 有稳定 visual candidate UI 后再接真实依赖。
+
+- [ ] **LATER-04 Graph / 关系抽取 contract** `Later`
+  - 预期功能：从真实 chunk signals / relations 生成可解释图谱。
+  - 触发条件：block/chunk/citation contract 稳定后启动。
+
+- [ ] **LATER-05 导出与集成能力** `Later`
+  - 预期功能：支持 GitHub Pages static snapshot、Feishu、HTML、Mermaid、PPT 导出，以及 SharePoint / Blob / 权限接入。
+  - 触发条件：Release-0 问答闭环和 artifact contract 稳定后拆分独立任务。
+
+## 6. 收尾规则
+
+- [ ] 系统级任务完成后，在本文件勾选并写一句证据。
+- [ ] 模块级设计变化写回对应 Spec。
+- [ ] 真实验证结果写入 changelog，计划性想法留在 TODO/Spec。
+- [ ] 跨会话状态变化写入 [dev-memory/SESSION-WIP.md](dev-memory/SESSION-WIP.md)。
+- [ ] 历史文档如果被新 Spec 完整吸收，先在 README 标注 superseded，再按用户确认移动归档。

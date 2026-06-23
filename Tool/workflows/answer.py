@@ -179,10 +179,20 @@ def build_answer_evidence_package(
 
 def _intent_type(question: str, normalized_terms: dict[str, list[str]]) -> str:
     text = question.casefold()
+    if len(normalized_terms["stage"]) >= 2 and _has_any(text, ("到", "之间", "between", "from", "to", "哪些工作", "完成")):
+        return "stage_transition_work"
+    if normalized_terms["deliverable"] and _has_any(text, ("包含", "内容", "谁负责", "撰写", "编写", "负责", "content", "owner", "author", "responsible")):
+        return "deliverable_detail"
+    if _has_any(text, ("敏捷", "agile", "裁剪", "tailor", "tailoring")) and _has_any(text, ("评审", "review", "不可", "不能", "不可被裁剪", "mandatory")):
+        return "tailoring_policy"
     if _has_any(text, ("差异", "比较", "对比", "difference", "compare")) and len(normalized_terms["bu"]) >= 2:
         return "bu_comparison"
     if _has_any(text, ("够不够", "缺什么", "缺口", "是否足够", "missing", "gap", "enough")):
         return "gap_check"
+    if _has_any(text, ("表格", "表", "矩阵", "清单", "table", "matrix", "list")):
+        return "table_lookup"
+    if _has_any(text, ("总结", "概括", "归纳", "summary", "summarize")):
+        return "summary_request"
     if _has_any(text, ("哪个文件", "哪个章节", "哪一章", "来自哪里", "引用", "reference", "where")):
         return "reference_lookup"
     if normalized_terms["section"] and _has_any(text, ("在哪", "哪个", "where")):
@@ -243,13 +253,48 @@ def _intent_policy(intent_type: str) -> dict[str, str | bool]:
             "risk_level": "process_compliance",
             "requires_abstention_check": True,
         },
+        "table_lookup": {
+            "source_scope_hint": "selected_docs_or_all_sources",
+            "answer_shape": "table_answer",
+            "reference_density": "high",
+            "risk_level": "source_trace",
+            "requires_abstention_check": True,
+        },
+        "summary_request": {
+            "source_scope_hint": "selected_docs_or_all_sources",
+            "answer_shape": "source_grounded_summary",
+            "reference_density": "medium_high",
+            "risk_level": "source_trace",
+            "requires_abstention_check": True,
+        },
+        "stage_transition_work": {
+            "source_scope_hint": "selected_docs_or_all_sources",
+            "answer_shape": "stage_transition_brief",
+            "reference_density": "high",
+            "risk_level": "process_compliance",
+            "requires_abstention_check": True,
+        },
+        "deliverable_detail": {
+            "source_scope_hint": "selected_docs_or_all_sources",
+            "answer_shape": "deliverable_detail",
+            "reference_density": "high",
+            "risk_level": "process_compliance",
+            "requires_abstention_check": True,
+        },
+        "tailoring_policy": {
+            "source_scope_hint": "selected_docs_or_all_sources",
+            "answer_shape": "tailoring_policy",
+            "reference_density": "high",
+            "risk_level": "process_compliance",
+            "requires_abstention_check": True,
+        },
     }
     return policies[intent_type]
 
 
 def _evidence_item(hit: RetrievalHit, index: int, normalized_terms: dict[str, list[str]]) -> EvidenceItem:
     first_ref = hit.chunk.source_refs[0]
-    quote = str(first_ref.get("quote") or hit.chunk.quote).strip()
+    quote = _evidence_quote(hit, first_ref, normalized_terms)
     return EvidenceItem(
         evidence_id=f"ev-{index}",
         document_id=hit.chunk.document_id,
@@ -265,6 +310,138 @@ def _evidence_item(hit: RetrievalHit, index: int, normalized_terms: dict[str, li
         signals=list(hit.chunk.signals),
         supports=_supports(hit, normalized_terms),
     )
+
+
+def _evidence_quote(hit: RetrievalHit, first_ref: dict[str, Any], normalized_terms: dict[str, list[str]]) -> str:
+    text = str(hit.chunk.text or "").strip()
+    terms = _evidence_quote_terms(hit, normalized_terms)
+    passage = _best_relevant_passage(text, terms, hit.chunk.section_title)
+    if passage:
+        return passage
+    return str(hit.chunk.quote or first_ref.get("quote") or "").strip()
+
+
+def _evidence_quote_terms(hit: RetrievalHit, normalized_terms: dict[str, list[str]]) -> list[str]:
+    terms: list[str] = []
+    terms.extend(str(term) for term in hit.matched_terms if str(term).strip())
+    for values in normalized_terms.values():
+        terms.extend(str(value) for value in values if str(value).strip())
+    seen: set[str] = set()
+    unique_terms: list[str] = []
+    for term in terms:
+        normalized = normalize_search_text(term)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        unique_terms.append(term)
+    return unique_terms
+
+
+def _best_relevant_passage(text: str, terms: list[str], section_title: str = "") -> str:
+    if not text or not terms:
+        return ""
+    candidates = _passage_candidates(text)
+    if not candidates:
+        return ""
+    scored = sorted(
+        (
+            (candidate, _passage_score(candidate, terms) + _passage_quality_score(candidate), index)
+            for index, candidate in enumerate(candidates)
+        ),
+        key=lambda item: (item[1], -item[2]),
+        reverse=True,
+    )
+    best, score, _index = scored[0]
+    if score <= 0:
+        return ""
+    return _trim_passage(_strip_section_heading_prefix(best, section_title))
+
+
+def _passage_candidates(text: str) -> list[str]:
+    paragraphs = [item.strip() for item in re.split(r"\n\s*\n+", text) if item.strip()]
+    if not paragraphs:
+        paragraphs = [text.strip()]
+    candidates: list[str] = []
+    for paragraph in paragraphs:
+        if len(paragraph) <= 900:
+            candidates.append(paragraph)
+            continue
+        sentences = [item.strip() for item in re.split(r"(?<=[。！？!?\.])\s+", paragraph) if item.strip()]
+        candidates.extend(sentences or [paragraph])
+    return candidates
+
+
+def _passage_score(candidate: str, terms: list[str]) -> int:
+    searchable = normalize_search_text(candidate)
+    score = 0
+    for term in terms:
+        normalized = normalize_search_text(term)
+        if normalized and normalized in searchable:
+            score += 1
+    return score
+
+
+def _passage_quality_score(candidate: str) -> int:
+    compact = re.sub(r"\s+", " ", candidate).strip()
+    score = 0
+    if len(compact) < 60:
+        score -= 3
+    if re.match(r"^\d+(?:\.\d+)*\s+", compact) and len(compact) < 120:
+        score -= 2
+    if re.search(r"\b(shall|must|defines?|describes?|contains?|requires?|is|are)\b", compact, flags=re.IGNORECASE):
+        score += 2
+    if re.search(r"(规定|适用|用于|应|必须|描述|说明|包含|要求)", compact):
+        score += 2
+    if len(compact) >= 120:
+        score += 1
+    if _looks_like_table_fragment(compact):
+        score -= 3
+    return score
+
+
+def _looks_like_table_fragment(text: str) -> bool:
+    normalized = text.casefold()
+    repeated_markers = sum(normalized.count(marker) for marker in (" specification", " test", " risk analysis", " component", " subsystem"))
+    bullet_or_footnote_count = len(re.findall(r"(?:\*\d+|•|\|)", text))
+    return repeated_markers >= 4 or bullet_or_footnote_count >= 3
+
+
+def _strip_section_heading_prefix(passage: str, section_title: str) -> str:
+    compact = re.sub(r"\s+", " ", passage).strip()
+    variants = _section_heading_variants(section_title)
+    if not variants:
+        return compact
+    for _ in range(3):
+        matched = False
+        for variant in variants:
+            if compact.casefold().startswith(variant.casefold()):
+                compact = compact[len(variant) :].lstrip(" /-:：。.")
+                matched = True
+                break
+        if not matched:
+            break
+    return compact or re.sub(r"\s+", " ", passage).strip()
+
+
+def _section_heading_variants(section_title: str) -> list[str]:
+    title = re.sub(r"\s+", " ", section_title or "").strip()
+    if not title:
+        return []
+    should_strip = bool(re.match(r"^\d+(?:\.\d+)*\s+", title)) or "/" in title
+    if not should_strip:
+        return []
+    variants = [title]
+    without_number = re.sub(r"^\d+(?:\.\d+)*\s+", "", title).strip()
+    if without_number and without_number != title:
+        variants.append(without_number)
+    return sorted(dict.fromkeys(variants), key=len, reverse=True)
+
+
+def _trim_passage(passage: str, limit: int = 800) -> str:
+    compact = re.sub(r"\s+", " ", passage).strip()
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1].rstrip() + "…"
 
 
 def _supports(hit: RetrievalHit, normalized_terms: dict[str, list[str]]) -> list[str]:

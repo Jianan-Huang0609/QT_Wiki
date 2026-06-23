@@ -1,0 +1,18 @@
+{
+  "document_id": "doc-20260611163304-4cbf18e4",
+  "title": "0. History / 修改历史",
+  "file_name": "20260611163304-MI PEP AND 308 11.pdf",
+  "stored_path": "Raw\\20260611163304-MI PEP AND 308 11.pdf",
+  "mime_type": "application/pdf",
+  "source_system": "manual_cli",
+  "biz_domain": "generic",
+  "department": "unknown",
+  "owner": "unknown",
+  "confidentiality": "internal",
+  "version": "v1",
+  "checksum": "4cbf18e4434fed402ba82a36639ece935fc39aaba220c015bad115fe15eba28d",
+  "ingested_at": "2026-06-11T16:33:04",
+  "parse_status": "needs_review",
+  "parsed_output": "C:\\Users\\z004wtps\\OneDrive - Siemens Healthineers\\07 AI related\\A. 自开发\\QT Wiki Agent\\QT-wiki\\Tool\\output\\parsed\\doc-20260611163304-4cbf18e4.json",
+  "manifest_path": "Raw\\manifests\\doc-20260611163304-4cbf18e4.json"
+}
