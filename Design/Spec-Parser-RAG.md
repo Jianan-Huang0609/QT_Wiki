@@ -306,6 +306,18 @@ Renderer 从 `DocumentBlock[]` 生成 Markdown：
 - visual block 渲染为 `![caption](crops/...)` 或文字占位，并带 review status。
 - renderer 可重复运行，避免人工编辑成为事实源。
 
+### 7.6A EvidenceSource Adapter
+
+当前 Release-0 先不等待完整 `DocumentBlock[]`，而是从 `SectionChunk + AnswerEvidencePackage + CitationPayload` 适配出轻量 `EvidenceSource`：
+
+- `evidence_id / citation_id`
+- `document_id / file_name`
+- `chunk_id / section_id / heading_path`
+- `anchor_label / quote / source_context`
+- `quality_warning / usable_as_primary_evidence`
+
+这个 adapter 是 Reference UI、Claim Guardrail、quality warning 和后续 parser 表格元素抽取之间的稳定桥。Parser 后续只需要把更强的 table/cell/visual anchors 供给 EvidenceSource，不直接泄漏 provider backend 字段到 Chat/UI 主路径。
+
 ### 7.7 Stage 6: Blocks -> Chunks -> Retrieval
 
 Chunk builder 以 blocks 为输入：

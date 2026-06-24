@@ -1591,6 +1591,60 @@ def test_table_lookup_route_uses_table_metadata_row_label_bonus():
     assert reranked.strategy_used == "table_lookup_route_retrieval"
 
 
+def test_session_query_exposes_evidence_sources_for_reference_ui(tmp_dir):
+    from fastapi.testclient import TestClient
+
+    from App import api
+    from App.api import app
+    from Tool.contracts.canonical import CanonicalDocument, DocumentMeta, Fragment, Section
+
+    parsed_dir = tmp_dir / "parsed"
+    parsed_dir.mkdir()
+    canonical = CanonicalDocument(
+        document=DocumentMeta(
+            document_id="ct-pep",
+            title="CT PEP",
+            source_path="Raw/ct.pdf",
+            file_name="ct.pdf",
+            source_type="pdf",
+            doc_type="pep",
+        ),
+        sections=[Section(section_id="sec-r2", title="5.3.2 R2 Responsibilities", level=1, page_range=[21])],
+        fragments=[
+            Fragment(
+                fragment_id="frag-r2",
+                section_id="sec-r2",
+                fragment_type="paragraph",
+                text="At R2, the Product Owner prepares QMP evidence and confirms product definition readiness.",
+                anchors={"page": 21, "paragraph_index": 2, "heading_path": ["5.3.2 R2 Responsibilities"]},
+            )
+        ],
+        source_anchors=[{"fragment_id": "frag-r2", "anchors": {"page": 21}}],
+    )
+    canonical.save(parsed_dir / "ct-pep.json")
+
+    with patch.object(api, "PARSED_DIR", parsed_dir):
+        response = TestClient(app).post(
+            "/api/session/query",
+            json={
+                "question": "R2阶段我作为PO应该做什么？",
+                "source_scope": {"mode": "selected_docs", "document_ids": ["ct-pep"]},
+                "use_llm": False,
+                "top_k": 3,
+                "top_k_citations": 3,
+            },
+        )
+
+    body = response.json()
+    assert response.status_code == 200
+    evidence_sources = body["structured_matches"][0]["evidence_sources"]
+    assert evidence_sources[0]["evidence_id"] == "ev-1"
+    assert evidence_sources[0]["citation_id"] == "c1"
+    assert evidence_sources[0]["document_id"] == "ct-pep"
+    assert evidence_sources[0]["chunk_id"]
+    assert evidence_sources[0]["usable_as_primary_evidence"] is True
+
+
 def test_tailoring_policy_route_prioritizes_agile_review_boundary_evidence():
     from App.api import _route_aware_retrieval_result
     from Tool.chunking.section_chunks import SectionChunk

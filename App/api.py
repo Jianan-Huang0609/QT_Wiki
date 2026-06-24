@@ -35,6 +35,7 @@ from Tool.retrieval.retrievers import FullTextRetriever, HybridRetriever, RuleSe
 from Tool.retrieval.section_index import RetrievalHit
 from Tool.workflows.answer import AnswerEvidencePackage, EvidenceItem, build_answer_evidence_package, parse_question_intent
 from Tool.workflows.document_parse import build_parse_workflow_summary
+from Tool.workflows.evidence_source import build_evidence_sources
 from Tool.workflows.intent_route import project_rule_route_to_intent_route
 from Tool.workflows.route_catalog import get_route_entry, route_answer_slot_dicts, route_query_pack, route_query_terms
 from wiki.builders.bootstrap import PAGE_BLUEPRINTS, bootstrap_pages
@@ -308,6 +309,7 @@ def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
         limit=payload.top_k_citations,
         chunks=chunks,
     )
+    evidence_sources = [source.to_dict() for source in build_evidence_sources(evidence_package, citations)]
     answer_plan = _session_answer_plan(route_plan=route_plan, evidence_package=evidence_package, citations=citations)
     used_llm = False
     llm_error = ""
@@ -334,7 +336,7 @@ def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
         used_llm=used_llm,
         matched_pages=_session_matched_sections(evidence_package),
         citations=citations,
-        structured_matches=[evidence_package.to_dict()],
+        structured_matches=[{**evidence_package.to_dict(), "evidence_sources": evidence_sources}],
         suggested_questions=_session_suggested_questions(payload.question, canonicals),
         trace=[
             f"load {len(canonicals)} parsed documents",
@@ -357,6 +359,7 @@ def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
             tool_plan=tool_plan,
             evidence_package=evidence_package,
             citations=citations,
+            evidence_sources=evidence_sources,
             citation_validation=citation_validation,
             answer_plan=answer_plan,
             answer=answer,
@@ -1668,6 +1671,7 @@ def _session_answer_run(
     tool_plan: dict[str, Any],
     evidence_package: AnswerEvidencePackage,
     citations: list[dict[str, Any]],
+    evidence_sources: list[dict[str, Any]],
     citation_validation: dict[str, Any],
     answer_plan: dict[str, Any],
     answer: str,
@@ -1742,6 +1746,7 @@ def _session_answer_run(
                     "citation_count": len(citations),
                     "missing_evidence_count": missing_count,
                     "evidence_preview": _session_evidence_preview(evidence_package, citations),
+                    "evidence_sources": evidence_sources,
                     "citation_validation": citation_validation,
                 },
             },

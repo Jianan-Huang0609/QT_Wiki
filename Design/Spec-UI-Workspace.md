@@ -166,6 +166,8 @@ Reference 展开 / Admin 字段：
 
 Reference 主路径的展开内容来自 `source_context`，按 `返回原文 / 前文 / 原文段落 / 后文` 渲染为可读段落；Chat 正文只保留结论、动作、边界和 citation label，不在正文重复展开原文命中或相邻上下文。
 
+2026-06-24 后续 UI 顺序：Reference polish 先消费 `EvidenceSource`，再做视觉层优化。右侧 Reference Card 应优先使用 `evidence_sources[*].usable_as_primary_evidence` 和 `quality_warning` 显示轻量质量提示；table/cell/visual anchors 作为 drill-down 信息进入 Review Gate / Admin，不进入普通 Ask Workspace 主路径。
+
 ## 6. 实施步骤
 
 - [ ] **U0 文件级 Source / Tree baseline**

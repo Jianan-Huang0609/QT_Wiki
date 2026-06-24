@@ -180,6 +180,49 @@ def test_answer_evidence_package_prefers_chunk_quote_over_title_only_ref():
     assert package.evidence_items[0].source_refs[0]["quote"] == "1 Purpose and scope/目的和适用范围"
 
 
+def test_evidence_source_adapter_exposes_stable_reference_view():
+    from Tool.workflows.answer import build_answer_evidence_package, parse_question_intent
+    from Tool.workflows.evidence_source import build_evidence_sources
+
+    intent = parse_question_intent("R2阶段我作为PO应该做什么")
+    result = RetrievalResult(
+        question="R2阶段我作为PO应该做什么",
+        strategy_used="scoped_section_retrieval",
+        source_scope={"mode": "selected_docs", "document_ids": ["ct-pep"]},
+        hits=[RetrievalHit(chunk=_chunk("r2"), score=9.5, matched_terms=["R2", "Product Owner", "QMP"])],
+        evidence_coverage={"documents": ["ct-pep"], "sections": ["sec-r2"], "hit_count": 1},
+        trace=[],
+    )
+    package = build_answer_evidence_package(result, intent=intent)
+    citation = {
+        "citation_id": "c1",
+        "evidence_id": "ev-1",
+        "document_id": "ct-pep",
+        "file_name": "ct.pdf",
+        "anchor_label": "p.21",
+        "quote": package.evidence_items[0].quote,
+        "source_context": {
+            "chunk_id": "chunk-ct-pep-1",
+            "section_id": "sec-r2",
+            "section_title": "5.3.2 R2 Responsibilities",
+            "anchor_label": "p.21",
+            "context_text": package.evidence_items[0].quote,
+        },
+    }
+
+    sources = build_evidence_sources(package, [citation])
+
+    assert len(sources) == 1
+    source = sources[0]
+    assert source.evidence_id == "ev-1"
+    assert source.citation_id == "c1"
+    assert source.chunk_id == "chunk-ct-pep-1"
+    assert source.heading_path == ["5.3.2 R2 Responsibilities"]
+    assert source.quality_warning == []
+    assert source.usable_as_primary_evidence is True
+    assert source.to_dict()["source_context"]["context_text"]
+
+
 def test_answer_evidence_package_selects_question_relevant_passage():
     from Tool.workflows.answer import build_answer_evidence_package, parse_question_intent
 

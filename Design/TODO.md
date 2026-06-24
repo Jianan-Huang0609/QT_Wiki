@@ -94,6 +94,29 @@ Parser 边界
 - RAG-02 结论：semantic-hybrid 已可运行，但在 role/reference 类问题出现 recall 回退与 citation drift；因此 RAG-03 先实现 route-gated semantic retriever，只在非 role/reference route 启用，role/reference 继续走 lexical/rule baseline 和 source guardrail。
 - 表格先让 route-gated semantic embedding 尝试补召回；若仍失败，再考虑 table-aware chunk metadata 或 structured table index。
 
+### 1.5 2026-06-24 checkpoint 后顺序
+
+| 顺序 | 下一步 | 判断 |
+| --- | --- | --- |
+| 1 | 本地 checkpoint | 已提交 `e5bd385 Add route-gated semantic and table diagnostics`，封板 Router/RAG/table metadata/eval 首轮。 |
+| 2 | `CHAT-COMP-01` | 先保留现有 composer 边界行为，避免 AnswerPlan-driven 迁移丢失 fallback、source-location 和 partial evidence 表达。 |
+| 3 | `PARSER-MIN-02` | 先统一 evidence view，再改 Reference UI、Claim Guardrail 和 parser quality。 |
+| 4 | `PARSER-MIN-03` | 给 evidence/doc 增加 ready/limited/needs_review 与 warning。 |
+| 5 | `UI-02` | Reference polish 建立在 EvidenceSource 与 quality warning 上。 |
+| 6 | `R0-01/R0-02` | 用单文档和高频专业问题做人审 smoke。 |
+| 7 | 触发式 parser | 若人审证明表格/结构 anchor 仍是瓶颈，再进入 parser 表格元素抽取。 |
+
+### 1.6 外部 RAG / Agent 框架吸收点
+
+| 参考 | 吸收方式 | 当前落点 |
+| --- | --- | --- |
+| Self-RAG | Retrieve -> Generate -> Critique -> 修正；按需检索。 | `CHAT-07` 做薄 Claim Guardrail，route-gated semantic 保持按需启用。 |
+| VMAO | Plan -> Execute -> Verify -> Replan。 | Answer Run 保持 bounded workflow；后续只允许一次确定性 replan。 |
+| Microsoft GraphRAG | 多文档图谱、社区摘要、层次总结。 | 放到 `R0-04` 多文档/BU 对比稳定后做轻量 domain graph。 |
+| DSPy | 把 prompt pipeline 当可优化程序。 | 先积累 eval/human-review 样本，再调 Router/Rewrite/Rerank。 |
+| Enterprise QA | 企业问答准确率有上限，必须显式证据边界。 | EvidenceSource、quality warning、Reference UI 和 human review。 |
+| MEQA | 多 Agent 分工处理复杂企业 QA。 | 普通问题走固定 workflow；异构工具任务再升级 agent。 |
+
 ## 2. 已完成证据
 
 - [x] **DOC-01 建立系统级 TODO + 模块级 Spec 框架**
@@ -186,10 +209,11 @@ Parser 边界
   - 证据：新增 `Tool.evals.route_evolution.route_evolution_eval_report()`、`tests/test_route_evolution_eval.py` 和 [review-artifacts/route-evolution-prep-readiness.md](review-artifacts/route-evolution-prep-readiness.md)。4 条“容易遗漏 / 准备事项 / 注意事项 / R2 前准备”问题当前规则 route 分布为 `generic_rag: 3`、`process_overview: 1`，结论为 `needs_route_decision`；候选收敛方向是 `process_operation` vs `generic_rag`，生产 route 暂不改。验证 `tests/test_route_evolution_eval.py -q` 通过。
   - 来源：[review-artifacts/router-shadow-diff.md](review-artifacts/router-shadow-diff.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
-- [ ] **CHAT-COMP-01 Composer 迁移风险评估** `Highest`
+- [x] **CHAT-COMP-01 Composer 迁移风险评估** `Highest`
   - 预期功能：在把 `_session_deterministic_answer()` 收敛为 AnswerPlan-driven 前，先确认现有 route-specific 分支在证据不完美时的补救行为不会丢。
   - 最小方案：新增 [dev-memory/composer_migration_risk.md](dev-memory/composer_migration_risk.md)，盘点 `process_operation / process_overview / reference_lookup / stage_transition_work / generic_rag` 等分支的边界行为：无 citation、partial evidence、missing slot、missing quote/context、fallback 输出。
   - 验收：文档明确 `filled / partial / missing` slot 的呈现规则；后续 composer 迁移测试至少覆盖 filled、partial、missing 三类 slot。
+  - 证据：新增 [dev-memory/composer_migration_risk.md](dev-memory/composer_migration_risk.md)，按 `process_operation/stage_transition_work/deliverable_detail/tailoring_policy/reference_lookup/generic_rag/table_lookup` 盘点当前行为、迁移风险和保留规则。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
 - [x] **CHAT-02 Session State / follow-up contract**
@@ -235,10 +259,11 @@ Parser 边界
   - 证据：新增 `Tool.evals.table_retrieval_diagnostic.table_retrieval_diagnostic_report()` 和 [review-artifacts/table-retrieval-diagnostic.md](review-artifacts/table-retrieval-diagnostic.md)。真实 MI PEP 表格问题 `MI PEP 这个表格里 QMP 的交付物责任是什么？` 已命中 `table_lookup`，route-gated semantic 启用，但 selected doc 中 `scoped_table_chunk_count = 0`、table-hit rate = `0.0`，失败分类为 `parser_provider_gap`。同时在 `_table_chunks()` 保持 `SectionChunk.text` 不变的前提下新增 `metadata.table_type / row_labels / column_headers`，并在 `_route_evidence_bonus()` 为 `table_lookup` 增加 row label / table metadata bonus；该路径不改 parser、不改 retriever、不改 embedding。结论：Router/Planner 已能进入表格意图层；已有 TableData 时可以到 table metadata level。后续提醒：当前先不写厚的 PDF pseudo-table detector；等 parser 内容整理干净且真实表格问题仍卡住时，再在 parser 层直接抽取能识别为表格元素的内容，例如 responsibility matrix、deliverable-owner/approver 表和 checklist。验证 `tests/test_table_retrieval_diagnostic.py tests/test_semantic_rag_smoke.py tests/test_section_chunk_retrieval.py tests/test_app_api.py -q` 通过。
   - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
-- [ ] **PARSER-MIN-02 EvidenceSource adapter** `Highest`
+- [x] **PARSER-MIN-02 EvidenceSource adapter** `Highest`
   - 预期功能：Chat、citation、AnswerPlan、Claim Verifier 和 Reference UI 使用同一条轻量 evidence view，不再各自拼 parser 零散字段。
   - 最小方案：从当前 `SectionChunk + source_refs + parse quality` 适配出 `evidence_id/document_id/file_name/chunk_id/section_id/heading_path/anchor_label/quote/source_context/quality_warning/usable_as_primary_evidence`。
   - 验收：AnswerPlan slot、citation、claim verifier 和 Reference Card 可通过同一个 `evidence_id` 反查同一段 quote/source_context。
+  - 证据：新增 `Tool.workflows.evidence_source.EvidenceSource` 与 `build_evidence_sources()`，`/api/session/query` 现在在 `structured_matches[0].evidence_sources` 和 answer_run execution 输出统一 evidence view，包含 `chunk_id/heading_path/quality_warning/usable_as_primary_evidence`。验证 `tests/test_answer_workflow.py::test_evidence_source_adapter_exposes_stable_reference_view tests/test_app_api.py::test_session_query_exposes_evidence_sources_for_reference_ui -q` 为 `2 passed, 1 warning`。
   - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)。
 
 - [ ] **PARSER-MIN-03 轻量文档状态与质量警告**

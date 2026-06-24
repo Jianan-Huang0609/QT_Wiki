@@ -1,6 +1,6 @@
 # QT Wiki Design Index
 
-更新时间：2026-06-23
+更新时间：2026-06-24
 状态：当前设计导航
 
 ## Start Here
@@ -35,6 +35,19 @@ Design/
   old/
   review-artifacts/
 ```
+
+## Current Technical Frame
+
+当前项目按四个板块推进：
+
+| 板块 | 当前 contract | 下一步 |
+| --- | --- | --- |
+| Chat Runtime | `intent-route-v0.2`、RouteCatalog、Answer Run、AnswerPlan v0.2 | Thin Claim Guardrail、bounded replan。 |
+| Retrieval / Evidence | HybridRetriever、AnswerEvidencePackage、EvidenceSource | Quality warning、Reference polish。 |
+| Parser / Blocks | CanonicalDocument、SectionChunk、TableData/FigureData | 触发式表格元素抽取，完整 provider 评估保持 Later。 |
+| UI Workspace | Source cards、Ask Workspace、Reference Viewer | Source Intake / Review Gate / Ask Workspace v2 / Admin 拆页。 |
+
+外部框架吸收采用“先 contract/eval，后 agent”的原则：Self-RAG 吸收到 verifier，VMAO 吸收到 bounded Answer Run，GraphRAG 放到多文档对比，DSPy 放到 eval-driven tuning，多 agent 只用于异构工具任务。
 
 设计和执行分工：
 

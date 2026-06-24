@@ -118,6 +118,18 @@ Route 保持开放的内容：
 
 ### 1.5 2026-06-23 辩证判断：薄 RouteCatalog + 泛化 Router
 
+### 1.6 2026-06-24 外部框架吸收原则
+
+当前 Chat Runtime 与 Self-RAG、VMAO 一类 agentic RAG 框架已经同向，但采用轻量工程化落地：
+
+- Self-RAG 的 reflection 思路落到 `Claim Guardrail` 和 route-gated retrieval，而不是开放式自我反思。
+- VMAO 的 Plan/Execute/Verify/Replan 落到 Answer Run；replan 后续只允许有限的确定性动作，例如扩大 top_k、使用 secondary query 或降级 fallback。
+- GraphRAG 只用于后续多文档/BU 对比，不进入当前单文档问答实时路径。
+- DSPy 式优化先依赖 eval/human-review 样本积累，再用于 Router、Query Rewrite 和 rerank 调参。
+- MEQA 式多 agent 只用于异构工具任务；普通文档问答继续走固定 workflow。
+
+设计边界：新增 agent 前必须先有 stable tool contract、eval case 和 human review gate。
+
 今天的设计判断进一步收敛为：**所有问题都经过统一 Router / Planner 步骤，但不是所有问题都固化为固定 route**。
 
 企业内部文档问答和普通聊天不同，关键目标不是“生成一段像答案的文字”，而是：回答只基于当前 source scope；citation 能定位到文件、页码/章节、quote；证据不足时能说明缺口；多轮追问能继承上下文；反复失败的问题能进入 eval 和 route evolution，而不是每次临场发挥。因此 Chat Runtime 需要比普通 `question -> retrieve -> prompt -> answer` 多一层可审计规划：
