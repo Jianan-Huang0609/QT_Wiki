@@ -2,6 +2,8 @@
 
 ## 2026-06-24
 
+- 重排 `Design/TODO.md` 顶部状态板：第一屏现在直接显示 `e5bd385` Router/RAG/table metadata/eval checkpoint、`cd8f324` EvidenceSource adapter、当前下一刀 `PARSER-MIN-03`、后续 `UI-02` 与 `R0-01/R0-02`，避免旧周计划遮住当前执行状态。
+
 - 提交本地 checkpoint `e5bd385 Add route-gated semantic and table diagnostics`，封板 Router/RAG/table metadata/eval 首轮；新增 `CHAT-COMP-01` composer 迁移风险文档，明确 filled / partial / missing slot 呈现规则和各 route 保留行为。新增 EvidenceSource adapter 首版，`/api/session/query` 现在在 `structured_matches[0].evidence_sources` 与 answer_run execution 输出统一 evidence view，供 Reference UI、Claim Guardrail 和 parser quality warning 复用。同步把 Self-RAG、VMAO、GraphRAG、DSPy、Enterprise QA、MEQA 的吸收点写入 TODO/Spec，原则是先 contract/eval，后 agent。
 
 - 完成 `CHAT-05C route evolution eval` 与 table-aware chunk metadata 首切片：新增 `Tool.evals.route_evolution` 和 `Design/review-artifacts/route-evolution-prep-readiness.md`，4 条“容易遗漏 / 准备事项 / 注意事项 / R2 前准备”问题当前规则 route 分布为 `generic_rag: 3`、`process_overview: 1`，结论为 `needs_route_decision`，生产 route 暂不改。`_table_chunks()` 在不改变 `SectionChunk.text` 的前提下新增 `metadata.table_type / row_labels / column_headers`，`_route_evidence_bonus()` 对 `table_lookup` 增加 table metadata match bonus；不改 parser、retriever 或 embedding。后续表格细节能力采用触发式处理：等 parser 内容整理干净且真实表格问题仍卡住时，再在 parser 层直接抽取能识别为表格元素的内容。

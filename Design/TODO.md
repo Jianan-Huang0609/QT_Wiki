@@ -27,17 +27,19 @@
 
 ## 1. 当前主线
 
-下一阶段主线是 Release-0 可信 NotebookLM-like 问答闭环的第二轮收敛：Parser 当前主路径够用，先冻结完整 provider 升级；本周优先做 Router 2.0 的 schema / shadow / diff，随后补 Semantic RAG 实验与表格检索诊断；下周在 Router contract 稳定后收敛 composer、抽离 rerank，并启动文档质量 contract 与 UI Source Intake。
+下一阶段主线是 Release-0 可信 NotebookLM-like 问答闭环的第二轮收敛：Router/RAG/table metadata/eval 首轮已 checkpoint，EvidenceSource 首版也已落地。现在进入 evidence quality -> Reference polish -> real smoke 的顺序；Parser 继续保持“当前够用，必要时触发式升级”，完整 provider 升级放在真实 smoke 证明结构 anchor 是瓶颈之后。
 
 ```text
-Router 2.0 第一刀
+已完成工作摘要
+
+Router 2.0
   -> intent-route-v0.2 schema
   -> RouteCatalog 13 个 entry 全量无损映射
   -> rule route 输出投影到 schema
   -> LLM Router shadow 输出与规则 route diff
   -> guardrails 失败降级 generic_rag
 
-RAG 升级第一刀
+RAG 升级
   -> VectorRetriever 接 Azure text-embedding-3-small adapter
   -> lexical-only vs semantic-hybrid smoke 对比
   -> 表格问题实测，先做 route-gated semantic retriever；只在非 role/reference route 启用，再判断 query rewrite / table-aware chunk / parser provider 哪层需要动
@@ -56,25 +58,25 @@ Parser 边界
 | [Spec-Chat-Workflow.md](Spec-Chat-Workflow.md) | 8 步 runtime、RouteCatalog、generic fallback、AnswerPlan、Claim Verifier、Session Memory | `CHAT-*` 产出可审计回答链路。 |
 | [Spec-UI-Workspace.md](Spec-UI-Workspace.md) | Source Intake / Review Gate / Ask Workspace / Admin | `UI-*` 产出普通用户主路径和开发调试路径分离的工作台。 |
 
-### 1.1 当前最高优先级
+### 1.1 当前状态板
 
-| 顺序 | 任务 | 优先级判断 |
+| 状态 | 任务 | 说明 |
 | --- | --- | --- |
-| 1 | `RAG-03` | 用真实 PEP 表格问题诊断表格检索短板，并落地 route-gated semantic retriever：先只在非 role/reference route 启用。 |
-| 2 | `CHAT-COMP-01` | 迁移 composer 前先盘点 5 类 hardcoded 分支的边界行为，避免 plan-driven 后丢功能。 |
-| 3 | `PARSER-MIN-03` / `PARSER-MIN-02` | 下周 UI 前置：先有文档/evidence 质量状态，再正式化 EvidenceSource view。 |
-| 4 | `UI-01` / `UI-02` | Router contract 稳定后启动 Source Intake 与 Ask Workspace 拆页。 |
+| 已提交 | Router/RAG/table metadata/eval checkpoint | `e5bd385 Add route-gated semantic and table diagnostics`，封板 `CHAT-05C`、`RAG-03`、route-gated semantic 与 table metadata/rerank 首轮。 |
+| 已提交 | EvidenceSource adapter | `cd8f324 Add EvidenceSource adapter`，完成 `CHAT-COMP-01` 与 `PARSER-MIN-02`，并同步 Spec/README/CHANGELOG/SESSION-WIP。 |
+| 当前下一刀 | `PARSER-MIN-03` 轻量文档状态与质量警告 | 在 EvidenceSource 上补 `ready / limited / needs_review` 与 evidence-level `quality_warning`，供 Reference UI 和 Claim Guardrail 使用。 |
+| 随后 | `UI-02` Ask Workspace v2 + Reference polish | Reference Card 消费 EvidenceSource 与 quality warning，普通问答路径继续保持干净。 |
+| 再随后 | `R0-01/R0-02` 真实 smoke | 单文档可信问答与高频专业问题人审，决定是否触发 parser 表格元素抽取。 |
 
-### 1.2 2026-06-24 到 2026-07-03 执行节奏
+### 1.2 2026-06-24 后续执行节奏
 
 | 时间 | 主线 | 交付 |
 | --- | --- | --- |
-| 6/24-6/25 | Router schema | `CHAT-05A`：schema、catalog mapping、round-trip fixture、answer_run shadow 输出。 |
-| 6/26 | Router shadow diff | `CHAT-05B`：LLM Router vs 规则 route diff artifact，保留 source-location guardrail。 |
-| 6/27 | Semantic RAG | `RAG-02`：Azure embedding adapter、3-way Hybrid smoke、lexical/semantic 对比报告。 |
-| 6/28 | 表格诊断 + route evolution + composer 风险 | `RAG-03` route-gated semantic retriever 与表格问题失败分类；`CHAT-05C` route evolution eval；`CHAT-COMP-01` 迁移风险文档。 |
-| 6/29-7/1 | Composer / rerank | AnswerPlan-driven composer；slot-driven route rerank extraction。 |
-| 7/2-7/3 | Quality + UI | `PARSER-MIN-03` 文档/evidence quality contract；`UI-01` Source Intake 第一刀。 |
+| 已完成 | Router/RAG/evidence checkpoint | `CHAT-05A/B/C`、`RAG-02/03`、table metadata/rerank、`CHAT-COMP-01`、`PARSER-MIN-02`。 |
+| 当前 | Quality contract | `PARSER-MIN-03`：轻量文档状态、evidence quality warning、primary evidence 可用性判断。 |
+| 下一步 | Reference polish | `UI-02`：Reference Viewer 用 EvidenceSource 展示 quote/source_context/quality warning。 |
+| 下一步 | Release-0 smoke | `R0-01/R0-02`：单文档 CT/MI/XP 与 R4->R5/QMP/敏捷裁剪真实人审。 |
+| 触发式 | Parser 表格元素抽取 | 仅当真实 smoke 证明 table/cell/structure anchor 是核心瓶颈时启动。 |
 
 ### 1.3 Router 2.0 设计要点
 
