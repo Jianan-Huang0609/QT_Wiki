@@ -93,6 +93,33 @@ def test_section_chunks_keep_section_boundary_and_source_refs():
     assert r2_chunk.source_refs[0]["anchor_label"] == "p.21"
 
 
+def test_table_chunks_add_metadata_without_changing_text():
+    from Tool.chunking.section_chunks import build_section_chunks
+
+    canonical = _pep_document()
+    canonical.tables.append(
+        TableData(
+            table_id="tbl-deliverables",
+            section_id="sec-r2",
+            page=22,
+            rows=[
+                ["Deliverable", "Owner", "Approver"],
+                ["QMP", "Project Manager", "Product Owner"],
+                ["Risk Management Plan", "System Engineering", "Project Manager"],
+            ],
+            anchors={"page": 22, "table_index": 2, "cell_range": "R1C1:R3C3"},
+        )
+    )
+
+    chunks = build_section_chunks(canonical)
+    table_chunk = next(chunk for chunk in chunks if chunk.anchors.get("table_index") == 2)
+
+    assert table_chunk.text == "5.3.2 R2 Responsibilities Deliverable | Owner | Approver QMP | Project Manager | Product Owner Risk Management Plan | System Engineering | Project Manager"
+    assert table_chunk.metadata["table_type"] == "role_deliverable"
+    assert table_chunk.metadata["column_headers"] == ["Deliverable", "Owner", "Approver"]
+    assert table_chunk.metadata["row_labels"] == ["QMP", "Risk Management Plan"]
+
+
 def test_retrieval_respects_source_scope_and_downranks_history_chunks():
     from Tool.chunking.section_chunks import build_section_chunks
     from Tool.retrieval.section_index import retrieve_sections

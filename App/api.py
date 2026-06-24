@@ -873,6 +873,8 @@ def _session_intent_route_shadow(*, route_plan: dict[str, Any], intent: Any, fol
         },
         "query_pack": route_plan.get("query_pack", {}),
     }
+    # TODO(CHAT-05C): retire these fixed rule-shadow confidence values after route
+    # evolution eval calibrates measured route/evidence confidence from router output.
     return project_rule_route_to_intent_route(
         route_id=route_id,
         question_type=str(getattr(intent, "intent_type", route_id)),
@@ -964,7 +966,7 @@ def _session_retrieve_sections(
 def _route_aware_retrieval_result(retrieval_result: Any, route_plan: dict[str, Any], *, top_k: int) -> Any:
     route_id = route_plan.get("route_id")
     entry = get_route_entry(str(route_id or ""))
-    if not entry or not entry.rerank_enabled:
+    if not entry or (not entry.rerank_enabled and route_id != "table_lookup"):
         return retrieval_result
 
     reranked = sorted(
@@ -1193,6 +1195,25 @@ def _route_evidence_bonus(hit: Any, route_id: str) -> float:
         bonus += _deliverable_detail_bonus(hit)
     if route_id == "tailoring_policy":
         bonus += _tailoring_policy_bonus(hit)
+    if route_id == "table_lookup":
+        bonus += _table_metadata_bonus(hit)
+    return bonus
+
+
+def _table_metadata_bonus(hit: Any) -> float:
+    metadata = getattr(hit.chunk, "metadata", {}) or {}
+    row_labels = [str(item).casefold() for item in metadata.get("row_labels", [])]
+    column_headers = [str(item).casefold() for item in metadata.get("column_headers", [])]
+    matched_terms = [str(item).casefold() for item in getattr(hit, "matched_terms", [])]
+    bonus = 0.0
+    if getattr(hit.chunk, "chunk_type", "") == "table":
+        bonus += 3.0
+    if metadata.get("table_type") in {"role_deliverable", "deliverable", "role"}:
+        bonus += 2.0
+    if any(term and any(term == label or term in label for label in row_labels) for term in matched_terms):
+        bonus += 8.0
+    if any(header in {"owner", "approver", "responsibility", "responsible", "职责", "责任", "交付", "deliverable"} for header in column_headers):
+        bonus += 2.0
     return bonus
 
 

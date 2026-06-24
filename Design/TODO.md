@@ -40,7 +40,7 @@ Router 2.0 第一刀
 RAG 升级第一刀
   -> VectorRetriever 接 Azure text-embedding-3-small adapter
   -> lexical-only vs semantic-hybrid smoke 对比
-  -> 表格问题实测，判断 query rewrite / table-aware chunk / parser provider 哪层需要动
+  -> 表格问题实测，先做 route-gated semantic retriever；只在非 role/reference route 启用，再判断 query rewrite / table-aware chunk / parser provider 哪层需要动
 
 Parser 边界
   -> 当前 PDF pypdf、DOCX XML 主链路保持不动
@@ -60,7 +60,7 @@ Parser 边界
 
 | 顺序 | 任务 | 优先级判断 |
 | --- | --- | --- |
-| 1 | `RAG-03` | 用真实 PEP 表格问题诊断表格检索短板，先判断 query rewrite 是否足够。 |
+| 1 | `RAG-03` | 用真实 PEP 表格问题诊断表格检索短板，并落地 route-gated semantic retriever：先只在非 role/reference route 启用。 |
 | 2 | `CHAT-COMP-01` | 迁移 composer 前先盘点 5 类 hardcoded 分支的边界行为，避免 plan-driven 后丢功能。 |
 | 3 | `PARSER-MIN-03` / `PARSER-MIN-02` | 下周 UI 前置：先有文档/evidence 质量状态，再正式化 EvidenceSource view。 |
 | 4 | `UI-01` / `UI-02` | Router contract 稳定后启动 Source Intake 与 Ask Workspace 拆页。 |
@@ -72,7 +72,7 @@ Parser 边界
 | 6/24-6/25 | Router schema | `CHAT-05A`：schema、catalog mapping、round-trip fixture、answer_run shadow 输出。 |
 | 6/26 | Router shadow diff | `CHAT-05B`：LLM Router vs 规则 route diff artifact，保留 source-location guardrail。 |
 | 6/27 | Semantic RAG | `RAG-02`：Azure embedding adapter、3-way Hybrid smoke、lexical/semantic 对比报告。 |
-| 6/28 | 表格诊断 + composer 风险 | `RAG-03` 表格问题失败分类；`CHAT-COMP-01` 迁移风险文档。 |
+| 6/28 | 表格诊断 + route evolution + composer 风险 | `RAG-03` route-gated semantic retriever 与表格问题失败分类；`CHAT-05C` route evolution eval；`CHAT-COMP-01` 迁移风险文档。 |
 | 6/29-7/1 | Composer / rerank | AnswerPlan-driven composer；slot-driven route rerank extraction。 |
 | 7/2-7/3 | Quality + UI | `PARSER-MIN-03` 文档/evidence quality contract；`UI-01` Source Intake 第一刀。 |
 
@@ -91,7 +91,8 @@ Parser 边界
 - `VectorRetriever` 已有注入点，本轮只接真实 Azure embedding adapter，不建向量数据库，不默认替换生产检索。
 - embedding 首选 Azure `text-embedding-3-small`；不可用时再评估本地 `all-MiniLM-L6-v2` fallback。
 - 三路 Hybrid 先等权 RRF，不先调权重；用 smoke 数据比较 recall@8、route accuracy、citation drift。
-- 表格先让 semantic embedding 尝试补召回；若仍失败，再考虑 table-aware chunk metadata 或 structured table index。
+- RAG-02 结论：semantic-hybrid 已可运行，但在 role/reference 类问题出现 recall 回退与 citation drift；因此 RAG-03 先实现 route-gated semantic retriever，只在非 role/reference route 启用，role/reference 继续走 lexical/rule baseline 和 source guardrail。
+- 表格先让 route-gated semantic embedding 尝试补召回；若仍失败，再考虑 table-aware chunk metadata 或 structured table index。
 
 ## 2. 已完成证据
 
@@ -178,6 +179,13 @@ Parser 边界
   - 证据：新增 `Tool.workflows.router_shadow` 和 `Tool.evals.router_shadow`，支持 LLM router prompt、JSON 提取、guardrail 后 diff 分类、可注入 router 测试和 Azure GPT-5.4 真实 shadow callable。已生成 [review-artifacts/router-shadow-diff.md](review-artifacts/router-shadow-diff.md)：6 个目标 case 中 5 个 `matched`，1 个 `fallback_mismatch`；`r0-mi-unknown-fallback` 中规则 route 保守降级 `generic_rag`，LLM shadow 选择 `process_operation`，暂作为 route evolution eval 样本，不替换生产 route。Source-location follow-up 本轮 matched，但继续保留程序级 citation/source-scope guardrail。验证 `tests/test_router_shadow_diff.py tests/test_route_catalog.py tests/test_app_api.py -q` 为 `46 passed, 1 warning`。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
+- [x] **CHAT-05C route evolution eval：容易遗漏/准备事项问题** `Highest`
+  - 预期功能：把 router shadow diff 中的 `fallback_mismatch` 沉淀为 route evolution eval，判断“容易遗漏 / 准备事项 / 注意事项 / 开始前需要什么”这类问题应扩展 `process_operation`，还是继续由 `generic_rag` 保守承接。
+  - 最小方案：新增 3-5 条真实/合成问题，覆盖 `容易遗漏什么`、`需要提前准备什么`、`有哪些注意事项`；对比规则 route、LLM shadow route、evidence 命中和 fallback answer 质量。
+  - 验收：输出 route evolution report，明确是否新增 RouteCatalog terms 或新 route；只有当该 eval 能稳定校准 `route_match/evidence_likely` 后，`_session_intent_route_shadow()` 中硬编码 confidence 才退役。
+  - 证据：新增 `Tool.evals.route_evolution.route_evolution_eval_report()`、`tests/test_route_evolution_eval.py` 和 [review-artifacts/route-evolution-prep-readiness.md](review-artifacts/route-evolution-prep-readiness.md)。4 条“容易遗漏 / 准备事项 / 注意事项 / R2 前准备”问题当前规则 route 分布为 `generic_rag: 3`、`process_overview: 1`，结论为 `needs_route_decision`；候选收敛方向是 `process_operation` vs `generic_rag`，生产 route 暂不改。验证 `tests/test_route_evolution_eval.py -q` 通过。
+  - 来源：[review-artifacts/router-shadow-diff.md](review-artifacts/router-shadow-diff.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
 - [ ] **CHAT-COMP-01 Composer 迁移风险评估** `Highest`
   - 预期功能：在把 `_session_deterministic_answer()` 收敛为 AnswerPlan-driven 前，先确认现有 route-specific 分支在证据不完美时的补救行为不会丢。
   - 最小方案：新增 [dev-memory/composer_migration_risk.md](dev-memory/composer_migration_risk.md)，盘点 `process_operation / process_overview / reference_lookup / stage_transition_work / generic_rag` 等分支的边界行为：无 citation、partial evidence、missing slot、missing quote/context、fallback 输出。
@@ -217,13 +225,14 @@ Parser 边界
   - 预期功能：系统可以用真实 embedding 检查 semantic retrieval 是否补足 lexical retrieval 的中英文混写、缩写和同义表达漏召回问题。
   - 最小方案：给 `VectorRetriever` 注入 Azure `text-embedding-3-small` adapter；先不建向量数据库，按本轮 selected-doc chunks 内存计算 cosine；在 smoke 中比较 `[RuleSection, FullText]` baseline 与 `[RuleSection, FullText, Vector]` semantic-hybrid。
   - 验收：输出 lexical-only vs semantic-hybrid 对比 artifact，至少记录 recall@8、route accuracy、citation drift、embedding endpoint 失败时的 fallback；默认生产检索不因 embedding 不可用失败。
-  - 证据：新增 `Tool.retrieval.embeddings.AzureEmbeddingAdapter` 和 `config/azure_embedding_3_small_config.json` 占位配置，真实接入 Azure `text-embedding-3-small`；新增 `Tool.evals.semantic_rag_smoke`，对比 lexical baseline 与 `[RuleSection, FullText, Vector]` semantic-hybrid，并用 batch + memory cache 避免重复 chunk embedding 请求。真实报告见 [review-artifacts/semantic-rag-smoke.md](review-artifacts/semantic-rag-smoke.md)：embedding endpoint 可用；lexical baseline recall@8 = `1.0`、route accuracy = `1.0`；semantic-hybrid recall@8 = `0.875`、route accuracy = `1.0`，`r0-mi-r2-po-guidance` 回退，`r0-mi-r2-po-guidance` 和 `r0-ct-section-716-reference` 发生 citation drift。结论：semantic retriever 保持实验开关，不替换生产默认检索；下一步 `RAG-03` 看真实表格问题是否受益。验证 `tests/test_semantic_rag_smoke.py -q` 为 `3 passed`。
+  - 证据：新增 `Tool.retrieval.embeddings.AzureEmbeddingAdapter` 和 `config/azure_embedding_3_small_config.json` 占位配置，真实接入 Azure `text-embedding-3-small`；新增 `Tool.evals.semantic_rag_smoke`，对比 lexical baseline、`[RuleSection, FullText, Vector]` semantic-hybrid 和 route-gated semantic，并用 batch + memory cache 避免重复 chunk embedding 请求。真实报告见 [review-artifacts/semantic-rag-smoke.md](review-artifacts/semantic-rag-smoke.md)：embedding endpoint 可用；lexical baseline recall@8 = `1.0`、route accuracy = `1.0`；semantic-hybrid recall@8 = `0.875`、route accuracy = `1.0`，`r0-mi-r2-po-guidance` 回退，`r0-mi-r2-po-guidance` 和 `r0-ct-section-716-reference` 发生 citation drift；route-gated semantic recall@8 回到 `1.0`，citation drift 降到 `0`。结论：semantic retriever 保持实验开关，不替换生产默认检索；后续只在非 role/reference route 试点。验证 `tests/test_semantic_rag_smoke.py -q` 为 `4 passed`。
   - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
-- [ ] **RAG-03 表格检索诊断 smoke** `Highest`
-  - 预期功能：团队知道当前 PEP 表格问题的短板在 query rewrite、table chunk、composer 还是 parser/provider，而不是直接先做重 parser。
-  - 最小方案：选择 1 个真实 PEP 表格问题，例如交付物责任、owner/approver、行列值查询；分别跑 lexical baseline 与 semantic-hybrid，记录 table chunk 是否进入 top hits、citation 是否可定位、answer 是否能抽出具体 cell/row 信息。
-  - 验收：输出失败分类：`query_rewrite_gap / table_chunk_flattening_gap / table_anchor_gap / composer_table_answer_gap / parser_provider_gap`；若 semantic 已能召回表格，structured table index 保持 Later。
+- [x] **RAG-03 表格检索诊断 + route-gated semantic retriever** `Highest`
+  - 预期功能：团队知道当前 PEP 表格问题的短板在 query rewrite、table chunk、composer 还是 parser/provider，并把 RAG-02 结论落成受 route 保护的 semantic retriever 实验开关。
+  - 最小方案：选择 1 个真实 PEP 表格问题，例如交付物责任、owner/approver、行列值查询；分别跑 lexical baseline 与 route-gated semantic-hybrid。Semantic 先只在非 role/reference route 启用，role/reference route 继续使用 lexical/rule baseline，避免 R2/PO 与 7.16 来源定位类问题的 citation drift 进入生产路径。
+  - 验收：输出失败分类：`query_rewrite_gap / table_chunk_flattening_gap / table_anchor_gap / composer_table_answer_gap / parser_provider_gap`；记录 route gate 对 recall@8、route accuracy 和 citation drift 的影响；若 semantic 已能召回表格，structured table index 保持 Later。
+  - 证据：新增 `Tool.evals.table_retrieval_diagnostic.table_retrieval_diagnostic_report()` 和 [review-artifacts/table-retrieval-diagnostic.md](review-artifacts/table-retrieval-diagnostic.md)。真实 MI PEP 表格问题 `MI PEP 这个表格里 QMP 的交付物责任是什么？` 已命中 `table_lookup`，route-gated semantic 启用，但 selected doc 中 `scoped_table_chunk_count = 0`、table-hit rate = `0.0`，失败分类为 `parser_provider_gap`。同时在 `_table_chunks()` 保持 `SectionChunk.text` 不变的前提下新增 `metadata.table_type / row_labels / column_headers`，并在 `_route_evidence_bonus()` 为 `table_lookup` 增加 row label / table metadata bonus；该路径不改 parser、不改 retriever、不改 embedding。结论：Router/Planner 已能进入表格意图层；已有 TableData 时可以到 table metadata level。后续提醒：当前先不写厚的 PDF pseudo-table detector；等 parser 内容整理干净且真实表格问题仍卡住时，再在 parser 层直接抽取能识别为表格元素的内容，例如 responsibility matrix、deliverable-owner/approver 表和 checklist。验证 `tests/test_table_retrieval_diagnostic.py tests/test_semantic_rag_smoke.py tests/test_section_chunk_retrieval.py tests/test_app_api.py -q` 通过。
   - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
 - [ ] **PARSER-MIN-02 EvidenceSource adapter** `Highest`

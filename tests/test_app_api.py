@@ -1551,6 +1551,46 @@ def test_deliverable_detail_route_prioritizes_entity_slot_evidence_over_scope_no
     assert reranked.strategy_used == "deliverable_detail_route_retrieval"
 
 
+def test_table_lookup_route_uses_table_metadata_row_label_bonus():
+    from App.api import _route_aware_retrieval_result
+    from Tool.chunking.section_chunks import SectionChunk
+    from Tool.retrieval.section_index import RetrievalHit, RetrievalResult
+
+    def table_chunk(chunk_id: str, row_labels: list[str]) -> SectionChunk:
+        return SectionChunk(
+            chunk_id=chunk_id,
+            document_id="mi-pep",
+            document_title="MI PEP",
+            file_name="MI PEP.pdf",
+            section_id=chunk_id,
+            section_title="Responsibility Matrix",
+            section_path=["Responsibility Matrix"],
+            chunk_type="table",
+            text="Deliverable | Owner | Approver\n" + "\n".join(row_labels),
+            quote="",
+            source_refs=[],
+            anchors={"table_index": 1},
+            signals=["table", "role_table", "deliverable_table"],
+            metadata={"table_type": "role_deliverable", "row_labels": row_labels, "column_headers": ["Deliverable", "Owner", "Approver"]},
+        )
+
+    pmp = RetrievalHit(chunk=table_chunk("tbl-pmp", ["PMP"]), score=20.0, matched_terms=["deliverable"])
+    qmp = RetrievalHit(chunk=table_chunk("tbl-qmp", ["QMP"]), score=15.0, matched_terms=["QMP", "deliverable"])
+    result = RetrievalResult(
+        question="MI PEP 这个表格里 QMP 的交付物责任是什么？",
+        strategy_used="hybrid_retrieval",
+        source_scope={"mode": "selected_docs", "document_ids": ["mi-pep"]},
+        hits=[pmp, qmp],
+        evidence_coverage={"documents": ["mi-pep"], "sections": [], "hit_count": 2},
+        trace=[],
+    )
+
+    reranked = _route_aware_retrieval_result(result, {"route_id": "table_lookup"}, top_k=1)
+
+    assert reranked.hits[0].chunk.chunk_id == "tbl-qmp"
+    assert reranked.strategy_used == "table_lookup_route_retrieval"
+
+
 def test_tailoring_policy_route_prioritizes_agile_review_boundary_evidence():
     from App.api import _route_aware_retrieval_result
     from Tool.chunking.section_chunks import SectionChunk

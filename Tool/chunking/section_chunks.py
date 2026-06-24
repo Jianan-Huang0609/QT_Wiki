@@ -157,7 +157,11 @@ def _table_chunks(
                 source_refs=[_table_source_ref(canonical, section, table)],
                 anchors=dict(table.anchors),
                 signals=_signals(section_title, text) + _table_signals(table.rows) + [chunk_type],
-                metadata={"row_count": len(table.rows), "column_count": _column_count(table.rows)},
+                metadata={
+                    "row_count": len(table.rows),
+                    "column_count": _column_count(table.rows),
+                    **_table_metadata(table.rows, chunk_type),
+                },
             )
         )
     return chunks
@@ -299,11 +303,28 @@ def _signals(title: str, text: str) -> list[str]:
 def _table_signals(rows: list[list[str]]) -> list[str]:
     header_text = " ".join(rows[0]).casefold() if rows else ""
     signals: list[str] = []
-    if "role" in header_text or "responsib" in header_text or "职责" in header_text or "角色" in header_text:
+    if "role" in header_text or "responsib" in header_text or "owner" in header_text or "approver" in header_text or "职责" in header_text or "角色" in header_text or "责任" in header_text:
         signals.append("role_table")
     if "deliverable" in header_text or "evidence" in header_text or "output" in header_text or "交付" in header_text or "证据" in header_text:
         signals.append("deliverable_table")
     return signals
+
+
+def _table_metadata(rows: list[list[str]], chunk_type: str) -> dict[str, Any]:
+    headers = [normalize_text(cell) for cell in rows[0]] if rows else []
+    row_labels = [normalize_text(row[0]) for row in rows[1:] if row and normalize_text(row[0])]
+    signals = set(_table_signals(rows))
+    if chunk_type == "document_history":
+        table_type = "document_history"
+    elif {"role_table", "deliverable_table"}.issubset(signals):
+        table_type = "role_deliverable"
+    elif "role_table" in signals:
+        table_type = "role"
+    elif "deliverable_table" in signals:
+        table_type = "deliverable"
+    else:
+        table_type = "generic"
+    return {"table_type": table_type, "row_labels": row_labels, "column_headers": headers}
 
 
 def _column_count(rows: list[list[str]]) -> int:

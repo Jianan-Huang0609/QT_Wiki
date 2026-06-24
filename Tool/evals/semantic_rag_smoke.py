@@ -13,6 +13,7 @@ from Tool.workflows.answer import parse_question_intent
 
 EmbedText = Callable[[str], list[float]]
 DEFAULT_ARTIFACT_PATH = Path("Design/review-artifacts/semantic-rag-smoke.md")
+SEMANTIC_ROUTE_EXCLUSIONS = {"role_action_guidance", "reference_lookup"}
 
 
 def semantic_rag_smoke_report(
@@ -34,10 +35,21 @@ def semantic_rag_smoke_report(
         _probe_embedding(vector_embed)
         semantic_retriever = HybridRetriever([RuleSectionRetriever(), FullTextRetriever(), VectorRetriever(embed_text=vector_embed)])
         semantic_cases = [_case_diagnostic(case, all_chunks, semantic_retriever, top_k=top_k) for case in eval_cases]
+        route_gated_cases = [
+            _route_gated_case_diagnostic(
+                case,
+                all_chunks,
+                lexical_retriever=lexical_retriever,
+                semantic_retriever=semantic_retriever,
+                top_k=top_k,
+            )
+            for case in eval_cases
+        ]
         fallback_used = False
     except Exception as exc:
         embedding_status = {**embedding_status, "status": "failed", "error": str(exc)}
         semantic_cases = lexical_cases
+        route_gated_cases = lexical_cases
         fallback_used = True
 
     return {
@@ -47,9 +59,14 @@ def semantic_rag_smoke_report(
         "backend_reports": {
             "lexical_baseline": _backend_report(lexical_cases, fallback_used=False),
             "semantic_hybrid": _backend_report(semantic_cases, fallback_used=fallback_used),
+            "route_gated_semantic": _backend_report(route_gated_cases, fallback_used=fallback_used),
         },
         "comparison": _comparison(lexical_cases, semantic_cases),
-        "case_diagnostics": [_combined_case(lexical, semantic) for lexical, semantic in zip(lexical_cases, semantic_cases)],
+        "route_gated_comparison": _comparison(lexical_cases, route_gated_cases),
+        "case_diagnostics": [
+            _combined_case(lexical, semantic, route_gated)
+            for lexical, semantic, route_gated in zip(lexical_cases, semantic_cases, route_gated_cases)
+        ],
     }
 
 
@@ -63,6 +80,7 @@ def write_semantic_rag_smoke_artifact(report: dict[str, Any], *, output_path: st
 def render_semantic_rag_smoke_markdown(report: dict[str, Any]) -> str:
     lexical = report.get("backend_reports", {}).get("lexical_baseline", {})
     semantic = report.get("backend_reports", {}).get("semantic_hybrid", {})
+    route_gated = report.get("backend_reports", {}).get("route_gated_semantic", {})
     lines = [
         "# Semantic RAG Smoke",
         "",
@@ -73,7 +91,9 @@ def render_semantic_rag_smoke_markdown(report: dict[str, Any]) -> str:
         f"- Embedding status: `{report.get('embedding', {}).get('status', '')}`",
         f"- Lexical recall@8: {lexical.get('metrics', {}).get('recall_at_8', 0.0)}",
         f"- Semantic recall@8: {semantic.get('metrics', {}).get('recall_at_8', 0.0)}",
+        f"- Route-gated semantic recall@8: {route_gated.get('metrics', {}).get('recall_at_8', 0.0)}",
         f"- Citation drift cases: {report.get('comparison', {}).get('citation_drift_count', 0)}",
+        f"- Route-gated citation drift cases: {report.get('route_gated_comparison', {}).get('citation_drift_count', 0)}",
         f"- Improved cases: {report.get('comparison', {}).get('improved_count', 0)}",
         f"- Regressed cases: {report.get('comparison', {}).get('regressed_count', 0)}",
         "",
@@ -88,6 +108,7 @@ def render_semantic_rag_smoke_markdown(report: dict[str, Any]) -> str:
                 f"- Route: `{item.get('actual_route_id', '')}` / expected `{item.get('expected_route_id', '')}`",
                 f"- Lexical: `{item.get('lexical_status', '')}` top `{item.get('lexical_top_hit', {}).get('chunk_id', '')}`",
                 f"- Semantic: `{item.get('semantic_status', '')}` top `{item.get('semantic_top_hit', {}).get('chunk_id', '')}`",
+                f"- Route-gated semantic: `{item.get('route_gated_status', '')}` top `{item.get('route_gated_top_hit', {}).get('chunk_id', '')}` enabled `{item.get('route_gated_semantic_enabled', False)}`",
                 f"- Drift: `{item.get('citation_drift', False)}`",
                 f"- Question: {item.get('question', '')}",
                 "",
@@ -187,6 +208,32 @@ def _case_diagnostic(case: dict[str, Any], chunks: list[SectionChunk], retriever
     }
 
 
+def _route_gated_case_diagnostic(
+    case: dict[str, Any],
+    chunks: list[SectionChunk],
+    *,
+    lexical_retriever: Any,
+    semantic_retriever: Any,
+    top_k: int,
+) -> dict[str, Any]:
+    route_id = _case_route_id(case)
+    semantic_enabled = is_semantic_enabled_for_route(route_id)
+    retriever = semantic_retriever if semantic_enabled else lexical_retriever
+    diagnostic = _case_diagnostic(case, chunks, retriever, top_k=top_k)
+    return {**diagnostic, "semantic_enabled": semantic_enabled}
+
+
+def _case_route_id(case: dict[str, Any]) -> str:
+    from App.api import _session_route_plan
+
+    question = str(case.get("question", ""))
+    return str(_session_route_plan(question, parse_question_intent(question)).get("route_id", ""))
+
+
+def is_semantic_enabled_for_route(route_id: str) -> bool:
+    return str(route_id or "") not in SEMANTIC_ROUTE_EXCLUSIONS
+
+
 def _case_failures(case: dict[str, Any], route_plan: dict[str, Any], hits: list[Any]) -> dict[str, Any]:
     failures: dict[str, Any] = {}
     expected_route = str(case.get("expected_route_id", ""))
@@ -255,7 +302,7 @@ def _comparison(lexical_cases: list[dict[str, Any]], semantic_cases: list[dict[s
     }
 
 
-def _combined_case(lexical: dict[str, Any], semantic: dict[str, Any]) -> dict[str, Any]:
+def _combined_case(lexical: dict[str, Any], semantic: dict[str, Any], route_gated: dict[str, Any]) -> dict[str, Any]:
     return {
         "case_id": lexical["case_id"],
         "question": lexical["question"],
@@ -263,9 +310,14 @@ def _combined_case(lexical: dict[str, Any], semantic: dict[str, Any]) -> dict[st
         "actual_route_id": lexical["actual_route_id"],
         "lexical_status": lexical["status"],
         "semantic_status": semantic["status"],
+        "route_gated_status": route_gated["status"],
         "lexical_top_hit": lexical.get("top_hit", {}),
         "semantic_top_hit": semantic.get("top_hit", {}),
+        "route_gated_top_hit": route_gated.get("top_hit", {}),
+        "route_gated_semantic_enabled": bool(route_gated.get("semantic_enabled", False)),
         "citation_drift": (lexical.get("top_hit") or {}).get("chunk_id") != (semantic.get("top_hit") or {}).get("chunk_id"),
+        "route_gated_citation_drift": (lexical.get("top_hit") or {}).get("chunk_id") != (route_gated.get("top_hit") or {}).get("chunk_id"),
         "lexical_failures": lexical.get("failures", {}),
         "semantic_failures": semantic.get("failures", {}),
+        "route_gated_failures": route_gated.get("failures", {}),
     }
