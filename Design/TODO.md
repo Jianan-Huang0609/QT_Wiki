@@ -27,12 +27,12 @@
 
 ## 1. 当前主线
 
-下一阶段主线是 Release-0 可信 NotebookLM-like 问答闭环。当前执行顺序明确为：先用 `BASE-01` 定尺子，再推进 Chat 的 RouteCatalog / generic fallback / AnswerPlan / Claim Verifier；Parser 先评估现有解析能力是否够用，只补轻量 EvidenceSource adapter；UI 最后围绕稳定 contract 优化。
+下一阶段主线是 Release-0 可信 NotebookLM-like 问答闭环。当前执行顺序明确为：先用 `BASE-01` 定尺子，再推进 Chat 的 RouteCatalog / generic fallback / AnswerPlan / Session State；Parser 先评估现有解析能力是否够用，只补轻量 EvidenceSource adapter；UI 围绕稳定 contract 做普通用户主路径减噪。Claim Verifier 先作为后续薄 guardrail，不作为当前主路径阻塞项。
 
 ```text
 BASE-01 smoke 问题集
   -> Chat 用 RouteCatalog / generic fallback 规划回答
-  -> evidence / citation / claim verifier 守住事实边界
+  -> evidence / citation / session state 守住事实边界和追问上下文
   -> 现有解析结果通过 EvidenceSource adapter 供 Chat 稳定消费
   -> UI 展示回答、引用、质量摘要
   -> CT / MI / XP smoke 证明可用
@@ -50,11 +50,11 @@ BASE-01 smoke 问题集
 
 | 顺序 | 任务 | 优先级判断 |
 | --- | --- | --- |
-| 1 | `BASE-01` | 先定 CT / MI / XP smoke 尺子，后续 Chat、Parser、UI 都用同一组问题验收。 |
-| 2 | `CHAT-04` / `CHAT-06` / `CHAT-07` | 当前最影响可信度：未知问题 fallback、AnswerPlan slot、Claim Verifier；`CHAT-03` 已完成。 |
-| 3 | `R0-01` / `R0-02` | 用单文档和高频专业问题证明 Chat 主链可用。 |
-| 4 | `PARSER-MIN-01` / `PARSER-MIN-02` / `PARSER-MIN-03` | 先判断现有 parser 是否够用，只补 Chat 必需的轻量 evidence view。 |
-| 5 | `UI-02` | 围绕稳定后的 Chat + evidence contract 修主问答体验。 |
+| 1 | `PARSER-MIN-02` | 把 Chat、citation、AnswerPlan、Reference 统一到轻量 EvidenceSource view，减少字段散拼。 |
+| 2 | `PARSER-MIN-03` | 输出文件级/evidence-level 质量状态，让 UI 能稳定表达已解析、待复核、不可作为 primary evidence。 |
+| 3 | `UI-01` / `UI-02` | 继续把上传、资源选择、连续提问、Reference 和 Note 做成普通用户主路径；debug/admin 进入后续页面。 |
+| 4 | `R0-01` / `R0-02` / `R0-03` / `R0-04` | 用真实 CT / MI / XP smoke 证明单文档、高频问题、未知 fallback 和多文档对比可用。 |
+| 5 | `CHAT-07` | 后续薄 Claim Guardrail，只检查高风险事实句和引用覆盖，不做厚同步二次 RAG。 |
 
 ## 2. 已完成证据
 
@@ -72,6 +72,15 @@ BASE-01 smoke 问题集
 
 - [x] **DONE-CHAT-03 Query Rewrite / ToolPlan / AnswerPlan v0.1 首切片**
   - 证据：`/api/session/query` 已写入 `query-rewrite-v0.1`、`tool-plan-v0.1`、`answer-plan-v0.1`；`process_operation/stage_transition_work/deliverable_detail/tailoring_policy` 已有首批 route 和 slot map。
+
+- [x] **DONE-CHAT-04 Answer readability 首切片**
+  - 证据：LLM composer prompt 和 deterministic fallback 已改为“短结论 + 自然小标题 + 可选语义字段”结构；Ask Workspace `RichAnswer` 支持 `依据 / 出处 / 边界 / 缺口 / 补充说明` 等语义字段行，并兼容旧式长 evidence 行的结构化渲染。前端已把编号步骤标题与补充小标题分层：编号标题为 `level-3`，普通 `####`/紧凑补充标题降为 `level-4`。验证 `tests/test_app_api.py -k "session_query_uses_selected_pep_chunks_for_process_question or process_overview_fallback_uses_evidence_details_without_fixed_framework" -q` 为 `2 passed, 1 warning`，`npm --prefix App/web run build` 通过；浏览器 smoke 确认补充标题字体小于编号标题。
+
+- [x] **DONE-CHAT-05 Session State / follow-up contract 首切片**
+  - 证据：`SessionQueryRequest` 已接收 `session_id` 与 `previous_turns`；`/api/session/query` 的 context step 输出 `session-state-v0.1`，包含 `is_follow_up`、`follow_up_reason`、上一问摘要、上一轮引用数、source scope 是否一致和 contextual query。前端连续提问时会把上一轮成功回答的摘要、citations 和 source scope 传入后端；短追问会把上一问合入检索 query。验证 `tests/test_app_api.py -k "session_query_uses_selected_pep_chunks_for_process_question or session_query_accepts_follow_up_contract or session_query_unknown_question_uses_generic_rag_fallback" -q` 为 `3 passed, 1 warning`。
+
+- [x] **DONE-UI-02A Ask Workspace 主路径减噪 + Reference 简化**
+  - 证据：上传成功后停留在 Ask Workspace；左侧 source card 显示已选/已解析/待复核状态，顶部移除 `Session PEP-R2`、eval/model 等小标堆叠；中间移除 `围绕当前 source 提问...`、`Process Chat`、`回答必须回到证据` 等说明性标题；右侧 Reference 去掉“当前原文 + 本轮返回”的重复结构，默认只显示 resource 文件、页码/锚点和返回 quote。验证 `npm --prefix App/web run build` 通过。
 
 ## 3. 当前执行计划
 
@@ -92,22 +101,24 @@ BASE-01 smoke 问题集
   - 证据：已新增 `Tool.workflows.route_catalog`，并让 `/api/session/query` 的 route plan metadata、query rewrite、ToolPlan `route_strategy`、retrieval top_k、route rerank、AnswerPlan slots 和 answer shape 读取 catalog；新增 `tests/test_route_catalog.py` 覆盖 Release-0 route 覆盖率和 API helper 接入。验证 `tests/test_route_catalog.py tests/test_app_api.py tests/test_answer_workflow.py tests/test_release0_smoke_cases.py tests/test_retriever_interface.py -q` 为 `49 passed, 1 warning`，`compileall` 和 `git diff --check` 通过。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
-- [ ] **CHAT-04 Generic RAG fallback + route evolution eval** `Highest`
+- [x] **CHAT-04 Generic RAG fallback + route evolution eval** `Highest`
   - 预期功能：未知问题也能得到有引用、有边界、有不确定性说明的回答；反复失败的问题可以沉淀为 eval case 和后续 RouteCatalog entry。
   - 最小方案：低置信、未知 route、LLM schema 校验失败时进入 `generic_rag`，输出 fallback reason、retrieved evidence、uncertainty 和 citation coverage。
   - 验收：fallback 返回短结论、支撑证据、不确定性提示和 citation coverage；新增 route 前先补 eval case。
+  - 证据：`/api/session/query` 已在未命中高频流程 route 时进入 `generic_rag`，planning step 输出 `fallback_reason`，generation step 输出 `generic-rag-fallback-v0.1` report，包含 citation coverage、retrieved evidence count、missing evidence count、confidence 和 uncertainty；deterministic fallback 回答会保留“证据边界”。新增 `tests/test_app_api.py::test_session_query_unknown_question_uses_generic_rag_fallback`，验证未知问题有 citation、有 fallback report、有证据边界。验证 `tests/test_app_api.py -k "unknown_question_uses_generic_rag_fallback or session_query_uses_selected_pep_chunks_for_process_question" -q` 为 `2 passed, 1 warning`。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
-- [ ] **CHAT-06 AnswerPlan v0.2 + evidence-bound slots** `Highest`
+- [x] **CHAT-06 AnswerPlan v0.2 + evidence-bound slots 首版** `Highest`
   - 预期功能：回答先形成结构化 slots，filled slot 必须绑定 evidence/citation；无证据的 slot 明确进入 missing evidence。
-  - 最小方案：Planner 基于 `RouteCatalog + EvidencePackage` 生成 `answer-plan-v0.2`；composer 只消费 AnswerPlan、citations、source_context 和 AnswerStyle。
-  - 验收：`process_operation/stage_transition_work/deliverable_detail/tailoring_policy/generic_rag` 均能生成 slots；slot 绑定的 citation_ids/evidence_ids 可反查。
+  - 最小方案：Planner 基于 `RouteCatalog + EvidencePackage` 生成 `answer-plan-v0.2`；LLM composer 接收 AnswerPlan、citations、source_context 和 AnswerStyle；deterministic fallback 后续收敛为 plan-only。
+  - 验收：`process_operation/stage_transition_work/deliverable_detail/tailoring_policy/generic_rag` 均能生成 slots；slot 绑定的 citation_ids/evidence_ids 可反查；缺证 slot 写入 `missing_evidence`。
+  - 证据：`/api/session/query` 的 generation step 已输出 `answer-plan-v0.2`，slot 保留 `citation_ids/evidence_ids` 并新增 `evidence_bindings`，可反查 document、section、anchor 和 quote preview；未填充 slot 进入 `missing_evidence`，并输出 `plan_quality` 统计 required、filled 和 missing required slots。新增 `tests/test_app_api.py::test_answer_plan_v02_records_missing_evidence_for_unfilled_required_slots`，并扩展 session query 回归验证 slot binding。验证 `tests/test_app_api.py tests/test_answer_workflow.py tests/test_route_catalog.py tests/test_release0_smoke_cases.py -q` 为 `46 passed, 1 warning`，VS Code diagnostics 与 `git diff --check` 通过。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
-- [ ] **CHAT-07 Claim Verifier report** `Highest`
-  - 预期功能：系统可以识别回答中的关键事实 claim，并标记 unsupported 或 weakly-supported claim。
-  - 最小方案：生成后抽取关键 claim，检查每个 claim 是否由 quote/source_context 支持，并写入 answer_run 和 UI 摘要。
-  - 验收：人为构造 unsupported claim 的测试能被标记；UI 展示 claim verifier 的通过/警告摘要。
+- [ ] **CHAT-07 Thin Claim Guardrail** `Later`
+  - 预期功能：系统可以对高风险事实句做轻量 groundedness 检查，并标记 unsupported 或 weakly-supported claim。
+  - 最小方案：只检查责任主体、必须/不可裁剪、阶段门、交付物结论等高风险 claim；复用本轮 citations/source_context，不新增厚同步二次 RAG。
+  - 验收：人为构造 unsupported 高风险 claim 的测试能被标记；answer_run 写入薄 guardrail 摘要；普通 UI 只展示警告状态，不展示调试细节。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
 - [ ] **CHAT-01 伴随式抽取 ChatWorkflowRunner**
@@ -122,25 +133,34 @@ BASE-01 smoke 问题集
   - 验收：R4/R5、QMP、敏捷裁剪和未知问题 fixture 通过 schema；非法 route 或低置信输出降级到 `generic_rag`。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
-- [ ] **CHAT-02 Session State / follow-up contract**
+- [x] **CHAT-02 Session State / follow-up contract**
   - 预期功能：用户连续追问时，系统能读取上一轮问题、答案摘要、citations 和 source scope history，并判断本轮是否是 follow-up。
-  - 最小方案：在 runner context step 记录 previous question、previous answer summary、selected docs history 和 `is_follow_up`。
-  - 验收：连续两问时后端能区分新问题和追问；answer_run context step 展示上一轮摘要和当前 source scope。
+  - 最小方案：在 request contract 接收 `session_id/previous_turns`；在 context step 记录 previous question、previous answer summary、selected docs history 和 `is_follow_up`。
+  - 验收：连续两问时后端能区分新问题和追问；answer_run context step 展示上一轮摘要、当前 source scope 和 contextual query。
+  - 证据：`tests/test_app_api.py::test_session_query_accepts_follow_up_contract` 已覆盖同 source scope 下短追问，前端 `querySession()` 已传入上一轮成功回答摘要和 citations。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
 - [ ] **CHAT-08 Session Memory Store** `Later`
-  - 预期功能：系统可以持久化 session turns、pinned answers、pinned references、confirmed terms、tool runs 和 source scope history。
-  - 最小方案：先把 answer_run memory step 从 `deferred` 改成可写入的最小 store。
-  - 验收：刷新页面后仍可恢复本 session 的 turns、pinned references 和 source scope history。
+  - 预期功能：系统可以持久化 session turns、confirmed references、confirmed terms、tool runs 和 source scope history。
+  - 最小方案：先把 request-level follow-up context 升级为可写入的最小 turn store。
+  - 验收：刷新页面后仍可恢复本 session 的 turns、confirmed references 和 source scope history。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
 ### Phase 2: Parser / RAG 最小必要底座
 
-- [ ] **PARSER-MIN-01 当前解析能力 smoke 评估** `Highest`
+- [x] **PARSER-MIN-01 当前解析能力 smoke 评估** `Highest`
   - 预期功能：团队可以判断现有 parser 输出是否足够支撑 Release-0 Chat 问答，避免先引入新重依赖。
   - 最小方案：用 `BASE-01` 问题集检查当前 `CanonicalDocument / SectionChunk / source_refs / source_context / quality` 信息是否足够回答普通流程、R2/PO、7.16、R4->R5、QMP、敏捷裁剪和证据缺口问题。
   - 验收：形成失败分类：Chat route/query/answer 可修、chunk/source_context 可修、parser 结构缺口、表格缺口、扫描/OCR 缺口。
+  - 证据：新增 `Tool.evals.parser_rag_smoke.release0_parser_rag_smoke_report()` 和 `tests/test_parser_rag_smoke.py`，使用 BASE-01 retrieval cases 对真实 CT/MI/XP parsed canonical 构建 `SectionChunk` 后运行 HybridRetriever 诊断。真实运行结果为 8 条 smoke 中 6 条通过、Recall@8 = 0.75；两个失败 `r0-mi-qmp-deliverable` 与 `r0-xp-agile-tailoring` 均归类为 `chat_route_query_answer_gap`，未发现 `chunk_source_context_gap/parser_structure_gap/table_gap/scanning_ocr_gap`。报告见 [review-artifacts/release0-parser-rag-smoke.md](review-artifacts/release0-parser-rag-smoke.md)。
   - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)。
+
+- [x] **RAG-01 Evidence Pattern RAG 首切片** `Highest`
+  - 预期功能：系统用少量证据模式处理高频专业问答，不为每个垂直术语新增一套流程；QMP、敏捷裁剪等问题能把正确证据排进 top hits。
+  - 最小方案：在 RouteCatalog 增加 `route-query-pack-v0.1` 和 domain term pack；强化 `deliverable_detail/tailoring_policy` 的 route-aware evidence scoring；补 `release0-route-rag-smoke-v0.1` runtime smoke。
+  - 验收：Release-0 route RAG smoke 的 8 条 BASE-01 case 全部通过，route accuracy 为 1.0；QMP 和 agile tailoring 两个原失败 case 通过；不引入 parser/provider/vector DB 变更。
+  - 证据：新增 `Tool.evals.route_rag_smoke.release0_route_rag_smoke_report()`、`tests/test_route_rag_smoke.py` 和 [review-artifacts/release0-route-rag-smoke.md](review-artifacts/release0-route-rag-smoke.md)。真实运行 `release0_route_rag_smoke_report(top_k=8)` 为 `8/8 pass`，`pass_rate = 1.0`，`route_accuracy = 1.0`；相关回归 `tests/test_route_rag_smoke.py tests/test_route_catalog.py tests/test_parser_rag_smoke.py tests/test_release0_smoke_cases.py tests/test_app_api.py tests/test_answer_workflow.py tests/test_retriever_interface.py tests/test_parser_quality_eval.py -q` 为 `69 passed, 1 warning`。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)、[Spec-Parser-RAG.md](Spec-Parser-RAG.md)。
 
 - [ ] **PARSER-MIN-02 EvidenceSource adapter** `Highest`
   - 预期功能：Chat、citation、AnswerPlan、Claim Verifier 和 Reference UI 使用同一条轻量 evidence view，不再各自拼 parser 零散字段。
@@ -158,14 +178,14 @@ BASE-01 smoke 问题集
 
 - [ ] **UI-01 Source Intake 基线**
   - 预期功能：用户进入 Source Intake 后，可以看到所有可用资料、当前选中的资料、解析状态和质量提示，并能切换本轮问答的 source scope。
-  - 最小方案：上传、recent runs、文件级 source cards、parse status、quality chip。
-  - 验收：Source 默认文件级；用户能清楚看到哪些资料可问、哪些资料已选、哪些资料有解析风险。
+  - 最小方案：左侧 Resource/Source 区提供上传入口、recent runs、文件级 source cards、parse status、quality chip 和本轮勾选 scope。
+  - 验收：Source 默认文件级；用户能清楚看到哪些资料可问、哪些资料已选、哪些资料有解析风险；上传后的资源能自然进入左侧资源列表并用于下一轮 Chat。
   - 来源：[Spec-UI-Workspace.md](Spec-UI-Workspace.md)。
 
 - [ ] **UI-02 Ask Workspace v2** `Highest`
-  - 预期功能：用户可以在一个干净的问答工作区中选择资料、连续提问、查看引用、展开原文上下文，并把答案或引用 pin 到 Session Note。
-  - 最小方案：左侧 source scope，中间 transcript + composer，右侧 Reference + Session Note；debug/admin 信息移出普通主路径。
-  - 验收：连续两问、citation 点击、Reference 展开、pin note 可用；普通问答路径不展示 JSON/debug/admin。
+  - 预期功能：用户可以在一个干净的问答工作区中选择资料、连续提问、查看引用，并展开可读原文上下文。
+  - 最小方案：左侧 resource/source scope，中间 transcript + composer，右侧 Reference 查看区；debug/admin 信息移出普通主路径。
+  - 验收：连续两问、citation 点击、右侧 Reference 默认显示文件/页码/quote，选中引用可展开完整原文、前文和后文；普通问答路径不展示 JSON/debug/admin。
   - 来源：[Spec-UI-Workspace.md](Spec-UI-Workspace.md)。
 
 - [ ] **UI-03 Review Gate 页面**

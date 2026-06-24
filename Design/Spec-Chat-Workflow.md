@@ -61,16 +61,16 @@ Chat Runtime 的正式目标骨架采用 8 步 workflow，作为后续 `ChatWork
 
 | Step | 目标状态 | 当前实现 | 差距判断 |
 | --- | --- | --- | --- |
-| 1. Receive Input | 显式接收 `user_message/session_id/selected_document_ids/mode` | `/api/session/query` 接收 `question/source_scope/use_llm/model_profile/top_k`；`selected_document_ids` 包在 `source_scope.document_ids` 中 | 部分完成；缺 `session_id` 和更清晰的 `mode` 枚举。 |
-| 2. Read Session State | 读取上一轮问题、已选文档、是否追问、source scope history | 前端有 chat transcript；后端每次请求 stateless，memory step 为 `deferred` | 明显缺口；需要 Session Memory Store / turn store。 |
+| 1. Receive Input | 显式接收 `user_message/session_id/selected_document_ids/mode` | `/api/session/query` 接收 `question/source_scope/session_id/previous_turns/use_llm/model_profile/top_k`；`selected_document_ids` 包在 `source_scope.document_ids` 中 | 首版完成；后续补更清晰的 `mode` 枚举。 |
+| 2. Read Session State | 读取上一轮问题、已选文档、是否追问、source scope history | 前端传上一轮成功回答摘要和 citations；后端 context step 输出 `session-state-v0.1`，可判断 `is_follow_up` 并生成 contextual query；UI 执行摘要展示 follow-up 上下文状态 | contract 首版完成；缺 durable Session Memory Store / turn store。 |
 | 3. Intent Router | LLM-first structured router + 轻量 Route Catalog，覆盖定义、流程、证据、对比、总结、表格查询等 route | `parse_question_intent()` + `_session_route_plan()` 已覆盖 `process_overview/process_operation`、`stage_transition_work`、`deliverable_detail`、`tailoring_policy` 等首批 route | 部分完成；当前仍偏规则/函数式 route，需要收敛为 LLM Router 输出结构化 JSON，再由 Route Catalog 与 verifier 守住边界。 |
-| 4. Query Rewrite | 按 route 改写检索查询，避免硬编码某类文档 | `_session_retrieval_question()` 已为流程总览/操作生成 route-specific query，已去 PEP 默认假设 | 部分完成；需要输出结构化 rewrite object，并覆盖 table/comparison/reference/gap。 |
+| 4. Query Rewrite | 按 route 改写检索查询，避免硬编码某类文档 | `_session_query_rewrite()` 已输出 `query-rewrite-v0.1`，并为 evidence-pattern routes 增加 `route-query-pack-v0.1`，包含 primary query、slot queries、must/support/weak/downrank terms | 部分完成；已覆盖 Release-0 route RAG smoke，后续需扩展 table/comparison/reference/gap 的 query pack 和 LLM Router schema。 |
 | 5. Tool Plan | 结构化决定 section search/fulltext/vector/table/direct read | 当前执行固定 `HybridRetriever([RuleSectionRetriever, FullTextRetriever])`，tool_calls 是摘要；direct reference context 已内嵌 | 部分完成；缺正式 Tool Registry、vector 持久索引、table lookup、direct read tool。 |
 | 6. Evidence Package | 整理 quote、anchor、source_ref、supports、source_context | `AnswerEvidencePackage`、citation validation、passage selector、`source_context` 已可用 | 基本完成首版；缺 claim-level `supports` 矩阵和跨工具 evidence schema。 |
-| 7. Answer Planner | LLM-first planner 生成 slots，Route Catalog 只提供轻量策略；slot 必须绑定 evidence，无证据标缺口 | `answer-plan-v0.1` 已为 `process_operation`、`stage_transition_work`、`deliverable_detail`、`tailoring_policy` 生成首批 slots | 部分完成；需要把 route-specific 函数式 slot map 收敛为“LLM planner + schema + verifier”的通用机制。 |
+| 7. Answer Planner | LLM-first planner 生成 slots，Route Catalog 只提供轻量策略；slot 必须绑定 evidence，无证据标缺口 | `answer-plan-v0.2` 已为 RouteCatalog routes 生成 slots，filled slot 绑定 `evidence_bindings/citation_ids/evidence_ids`，缺证 slot 写入 `missing_evidence` | 首版完成；仍需把 route-specific 函数式 planner 收敛为 LLM-first structured planner，并让 deterministic fallback 完全按 AnswerPlan compose。 |
 | 8. Claim Verifier + UI | 检查事实支持、citation coverage，并在 UI 展示答案/引用/过程摘要 | UI 已显示思考摘要、引用、source context；`self_check` 是启发式摘要 | 部分完成；缺真正 claim verifier / groundedness eval / unsupported claim 标记。 |
 
-阶段判断：当前整体约 **5/8 可用**。`1/3/4/5/6/8` 已有可运行首版，`2/7` 是主要结构缺口，`3/7` 的下一步方向从“继续手写更多 route 函数”收敛为“LLM-first structured router/planner + 轻量 route catalog + evidence/citation verifier”。
+阶段判断：当前整体约 **6/8 可用**。`1/3/4/5/6/7/8` 已有可运行首版，`2` 是主要结构缺口，`3/7` 的下一步方向从“继续手写更多 route 函数”收敛为“LLM-first structured router/planner + 轻量 route catalog + evidence/citation verifier”。
 
 ### 1.3 2026-06-22 设计收敛：LLM-first Router / Planner
 
@@ -153,14 +153,56 @@ question
 
 `generic_rag` 不是随便兜底。它的固定输出目标是：短结论、支撑证据、不确定性/缺口、可追溯引用。低置信 route、未知问题、LLM 输出 schema 不合法或 catalog 不包含的问题，都进入 `generic_rag`，并把失败样本写入 eval。反复失败的问题再沉淀为 Route Catalog entry。
 
-### 1.6 企业 NotebookLM-like RAG 的剩余能力缺口
+### 1.6 2026-06-23 RAG-01：Evidence Pattern RAG
+
+本轮根据 Release-0 parser/RAG smoke 的两个真实失败收敛出一个原则：**不要为每个垂直术语单独设计流程，而要把 RAG 组织成 evidence pattern**。
+
+核心公式：
+
+```text
+Route 按证据需求分类
+Term 按领域词包扩展
+Slot 按答案结构绑定
+Eval 按真实 runtime 验证
+```
+
+这意味着：
+
+- `QMP` 不是一条独立流程，而是 `deliverable_detail` 证据模式里的一个实体。
+- `agile tailoring review` 不是一条独立流程，而是 `tailoring_policy` 证据模式里的一个实体/主题。
+- 新增专业词时优先扩展 domain term pack；主 runtime、RouteCatalog 和 AnswerPlan 不随术语无限膨胀。
+
+落地改变：
+
+- `route-query-pack-v0.1`：在原 `query-rewrite-v0.1` 内新增 query pack，包含 `primary_query`、`slot_queries`、`must_terms`、`support_terms`、`weak_terms`、`downrank_terms`。
+- Domain term pack：把 `QMP / quality management plan / 质量管理计划`、`owner / author / responsible`、`agile / tailoring / mandatory / cannot be tailored` 等词从流程代码里抽成 route term pack。
+- Route evidence scoring：`deliverable_detail` 和 `tailoring_policy` 不再继承 overview bonus；QMP 内容/责任证据、敏捷裁剪/强制评审边界证据被提升，`Purpose and scope`、`Provisional solution` 等泛章节在 detail/policy route 下被降权。
+- Route priority：多 BU 对比优先于阶段转换；开放式发现类问题进入 `generic_rag`。
+- Runtime eval：新增 `release0-route-rag-smoke-v0.1`，跑真实 route plan、query pack、HybridRetriever 和 route-aware rerank，而不是只看 parser/chunk 是否存在证据。
+
+验证结果：`release0_route_rag_smoke_report(top_k=8)` 对 8 条 BASE-01 case 全部通过，`pass_rate = 1.0`，`route_accuracy = 1.0`。证据报告见 [review-artifacts/release0-route-rag-smoke.md](review-artifacts/release0-route-rag-smoke.md)。
+
+### 1.7 2026-06-23 Session State / Follow-up contract 首切片
+
+本轮补齐多轮追问的最小 contract，不引入持久 memory store：
+
+- request：`SessionQueryRequest` 新增 `session_id` 和 `previous_turns`。
+- frontend：连续提问时发送上一轮成功回答的 `question / answer_summary / source_scope / citations`。
+- context step：`answer_run.steps[].outputs.session_state` 输出 `session-state-v0.1`，包含 `is_follow_up`、`follow_up_reason`、`same_source_scope`、`previous_turn` 和 `contextual_question`。
+- retrieval：短追问或带“那 / 这个 / 上面 / 继续”等 marker 的追问，会把上一问合入检索 query；最终回答仍围绕当前问题。
+
+这个切片解决“那 QMP evidence 呢？”这类追问缺上下文的问题。后续 `CHAT-08 Session Memory Store` 再处理刷新恢复、turn 持久化、confirmed references 和 source scope history。
+
+同时明确 `Claim Verifier` 的落地顺序：当前不做厚同步 verifier，不在每次回答后再跑一层复杂 RAG/LLM。后续 `CHAT-07` 作为薄 guardrail，只检查责任主体、必须/不可裁剪、阶段门、交付物结论等高风险事实句是否被当前 citations/source_context 支撑。
+
+### 1.8 企业 NotebookLM-like RAG 的剩余能力缺口
 
 为了让 QT Wiki 成为可信的企业内部文档 NotebookLM-like 工作台，而不是只做 selected-doc chat，还需要补齐以下能力：
 
-- **Session State / Follow-up**：后端需要读取上一轮 question、answer 摘要、citations 和 source scope history，支持“那 QMP 呢？”这类追问。
+- **Session Memory Store**：当前已有 request-level follow-up contract，但还需要 durable store 恢复 turns、confirmed references、confirmed terms 和 source scope history。
 - **RouteCatalog 抽象**：当前 route 信息散在 `parse_question_intent()`、`_session_route_plan()`、query rewrite、rerank bonus 和 AnswerPlan slot map 中，需要先做减法式抽取。
 - **Generic RAG fallback eval**：未知问题必须也能返回有引用、有边界、有不确定性提示的回答；fallback 质量需要 eval 固定。
-- **Claim Verifier**：citation validation 只能证明引用字段可信，还需要 claim-level 检查，验证回答中的责任、必须、不可裁剪、评审结论是否被 quote/source_context 支持。
+- **Thin Claim Guardrail**：citation validation 只能证明引用字段可信，还需要轻量 claim-level 检查，验证回答中的责任、必须、不可裁剪、评审结论是否被 quote/source_context 支持。
 - **Route Evolution Loop**：把用户反复追问、LLM 答偏、多轮不准的问题记录为 eval case，再判断该修 catalog、query rewrite、retrieval、answer planner、parser artifact 还是 source selection。
 - **Table / Figure / Structured Block tools**：企业流程答案常在表格、矩阵、责任表和交付物清单中；后续需要 block-aware retrieval、table lookup、cell-level citation 和 parse quality tool。
 
@@ -169,17 +211,17 @@ question
 ## 2. 当前问题
 
 - `/api/session/query` 已有 selected-doc source scope，但实现仍集中在 API 函数里，难以测试和扩展。
-- runtime input contract 缺少显式 `session_id`、`selected_document_ids` 和 `mode` 字段，当前靠 `source_scope` 和前端状态隐式表达。
-- 后端没有读取上一轮 question / answer / source history，无法真正判断 follow-up。
+- runtime input contract 已有 `session_id/source_scope/previous_turns`，但还缺更清晰的 `mode` 枚举。
+- 后端已读取 request-level previous turns 判断 follow-up，但还没有 durable turn store 和刷新恢复能力。
 - `QuestionIntent` 已有规则 baseline，但没有 route / plan contract。
 - session query 已接入 `HybridRetriever([RuleSectionRetriever, FullTextRetriever])` 首切片；当前是 parsed canonical JSON -> runtime `SectionChunk[]` -> lexical hybrid RAG，不是持久化向量数据库。下一步需要补 direct source context、retriever config / Tool Registry，并补 R2/PO、7.16、BU diff eval。
 - `use_llm` 在 session query 主链路里没有真正决定 answer composer。
 - `answer_run` 已有六步结构，但 execution/tool calls 仍是静态摘要。
-- memory step 仍是 `deferred`，前端 pin-ready 没有 durable store。
+- memory / context step 当前是 request-level follow-up contract，前端不再提供 Pin / Session Note 主路径；durable turn store 仍待后续切片。
 - citation 当前是最高风险点：可能出现旧 handoff/source scope 串线、quote 缺失、History/template change 误入 primary evidence、回答事实和引用不匹配。
-- Reference Viewer 当前只展开 quote 和定位字段，还缺同文档相邻 chunk / section excerpt 前后文，用户难以判断引用是否完整支撑答案。
-- Answer Planner 还没有独立结构；目前流程操作答案由 deterministic composer 直接组织，缺少 slot -> evidence -> missing gap 的中间产物。
-- Claim Verifier 还停留在 `self_check` / answer eval 方向，尚未按事实句生成 claim support report。
+- Reference Viewer 默认只展示文件、页码/锚点和 quote，减少主路径重复；选中引用可展开完整返回原文和 `source_context` 前后文，供用户核查原文。
+- Answer Planner 已有 `answer-plan-v0.2` 中间产物，覆盖 slot -> evidence/citation binding -> missing evidence；deterministic fallback 仍有 route-specific compose 逻辑，后续需要完全收敛为 plan-only composer。
+- Claim Verifier 当前明确后置为 thin guardrail；`self_check` 仍只是启发式摘要，尚未按高风险事实句生成 claim support report。
 
 ## 3. ChatWorkflowRunner
 
@@ -490,8 +532,7 @@ Eval 结果进入 `answer_run.generation.outputs.eval_summary` 和 Admin / JSON 
 {
   "session_id": "session-...",
   "turns": [],
-  "pinned_answers": [],
-  "pinned_references": [],
+  "confirmed_references": [],
   "confirmed_terms": [],
   "tool_runs": [],
   "source_scope_history": []
@@ -500,7 +541,7 @@ Eval 结果进入 `answer_run.generation.outputs.eval_summary` 和 Admin / JSON 
 
 Memory step 状态：
 
-- P0：`deferred`，仅前端 pin-ready。
+- P0：request-level follow-up context，尚未持久化。
 - P1：写入 local JSON store。
 - P2：支持 session reopen / search / export。
 
@@ -546,15 +587,15 @@ Memory step 状态：
 - [ ] **C6 Answer eval 集成**
   - 验收：missing citation / unsupported claim / missing evidence 被返回到 answer_run。
 
-- [ ] **C6A LLM-first Answer Planner + evidence-bound slots**
-  - 最小方案：LLM Planner 基于 `RouteCatalog + EvidencePackage` 生成 `answer-plan-v0.2`；程序校验 filled slot 的 evidence/citation 绑定。
-  - 验收：`process_operation/stage_transition_work/deliverable_detail/tailoring_policy/generic_rag` 均能生成 slots；slot 无证据时写入 `missing_evidence`，composer 只消费 plan。
+- [x] **C6A AnswerPlan v0.2 + evidence-bound slots 首版**
+  - 最小方案：Planner 基于 `RouteCatalog + EvidencePackage` 生成 `answer-plan-v0.2`；程序记录 filled slot 的 evidence/citation 绑定。
+  - 验收：`process_operation/stage_transition_work/deliverable_detail/tailoring_policy/generic_rag` 均能生成 slots；slot 无证据时写入 `missing_evidence`；LLM composer 接收 AnswerPlan，deterministic fallback 后续收敛为 plan-only。
 
 - [ ] **C6B Claim Verifier report**
   - 验收：生成后抽取事实 claim，校验每个 claim 是否由 citation quote/source_context 支持；unsupported / weakly-supported claim 写入 answer_run 和 UI 摘要。
 
 - [ ] **C7 Session memory store**
-  - 验收：pin answer/ref 可持久化，memory step 从 deferred 变为 done 或 warning。
+  - 验收：turns、confirmed references 和 source scope history 可持久化，memory/context step 从 request-only 变为 done 或 warning。
 
 ## 11. 测试和验证
 
@@ -562,4 +603,4 @@ Memory step 状态：
 - Intent test：R2/PO、reference lookup、BU comparison、table lookup、parse quality。
 - Tool test：hybrid retrieval、table lookup、quality lookup。
 - Answer eval test：missing citation、unsupported claim、evidence gap。
-- Browser smoke：连续两问、Answer Run 六步、citation card、pin note。
+- Browser smoke：连续两问、Answer Run 摘要、citation card、Reference 展开原文。

@@ -179,21 +179,21 @@ def build_answer_evidence_package(
 
 def _intent_type(question: str, normalized_terms: dict[str, list[str]]) -> str:
     text = question.casefold()
+    if _has_any(text, ("差异", "比较", "对比", "相同点", "共同点", "difference", "compare")) and len(normalized_terms["bu"]) >= 2:
+        return "bu_comparison"
     if len(normalized_terms["stage"]) >= 2 and _has_any(text, ("到", "之间", "between", "from", "to", "哪些工作", "完成")):
         return "stage_transition_work"
     if normalized_terms["deliverable"] and _has_any(text, ("包含", "内容", "谁负责", "撰写", "编写", "负责", "content", "owner", "author", "responsible")):
         return "deliverable_detail"
     if _has_any(text, ("敏捷", "agile", "裁剪", "tailor", "tailoring")) and _has_any(text, ("评审", "review", "不可", "不能", "不可被裁剪", "mandatory")):
         return "tailoring_policy"
-    if _has_any(text, ("差异", "比较", "对比", "difference", "compare")) and len(normalized_terms["bu"]) >= 2:
-        return "bu_comparison"
     if _has_any(text, ("够不够", "缺什么", "缺口", "是否足够", "missing", "gap", "enough")):
         return "gap_check"
     if _has_any(text, ("表格", "表", "矩阵", "清单", "table", "matrix", "list")):
         return "table_lookup"
     if _has_any(text, ("总结", "概括", "归纳", "summary", "summarize")):
         return "summary_request"
-    if _has_any(text, ("哪个文件", "哪个章节", "哪一章", "来自哪里", "引用", "reference", "where")):
+    if _has_any(text, ("哪个文件", "哪个章节", "哪一章", "来自哪里", "在原文", "出处", "来源", "第几页", "哪一页", "哪页", "页码", "引用", "reference", "citation", "source", "where")):
         return "reference_lookup"
     if normalized_terms["section"] and _has_any(text, ("在哪", "哪个", "where")):
         return "reference_lookup"

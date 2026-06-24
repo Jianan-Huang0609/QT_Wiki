@@ -47,6 +47,29 @@ class RouteCatalogEntry:
         return payload
 
 
+@dataclass(frozen=True, slots=True)
+class RouteQueryPack:
+    route_id: str
+    primary_query: str
+    route_terms: tuple[str, ...]
+    slot_queries: tuple[dict[str, Any], ...]
+    must_terms: tuple[str, ...]
+    support_terms: tuple[str, ...]
+    weak_terms: tuple[str, ...]
+    downrank_terms: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["schema_version"] = "route-query-pack-v0.1"
+        payload["route_terms"] = list(self.route_terms)
+        payload["slot_queries"] = [dict(item) for item in self.slot_queries]
+        payload["must_terms"] = list(self.must_terms)
+        payload["support_terms"] = list(self.support_terms)
+        payload["weak_terms"] = list(self.weak_terms)
+        payload["downrank_terms"] = list(self.downrank_terms)
+        return payload
+
+
 def get_route_catalog() -> dict[str, RouteCatalogEntry]:
     return dict(_ROUTE_CATALOG)
 
@@ -66,7 +89,40 @@ def route_query_terms(route_id: str, normalized_terms: dict[str, list[str]] | No
         if key == "stage":
             values = values[:2]
         dynamic_terms.extend(values)
-    return [*dynamic_terms, *entry.query_terms]
+    term_pack = route_domain_term_pack(route_id, normalized_terms)
+    return _unique([*dynamic_terms, *term_pack["must_terms"], *entry.query_terms, *term_pack["support_terms"]])
+
+
+def route_query_pack(route_id: str, question: str, normalized_terms: dict[str, list[str]] | None = None) -> dict[str, Any]:
+    entry = get_route_entry(route_id)
+    if entry is None:
+        return RouteQueryPack(route_id=route_id, primary_query=question, route_terms=(), slot_queries=(), must_terms=(), support_terms=(), weak_terms=(), downrank_terms=()).to_dict()
+
+    route_terms = tuple(route_query_terms(route_id, normalized_terms))
+    term_pack = route_domain_term_pack(route_id, normalized_terms)
+    slot_queries = tuple(_slot_query_payload(question, slot, term_pack) for slot in entry.answer_slots)
+    return RouteQueryPack(
+        route_id=route_id,
+        primary_query=" ".join([question, *route_terms]).strip(),
+        route_terms=route_terms,
+        slot_queries=slot_queries,
+        must_terms=tuple(term_pack["must_terms"]),
+        support_terms=tuple(term_pack["support_terms"]),
+        weak_terms=tuple(term_pack["weak_terms"]),
+        downrank_terms=tuple(term_pack["downrank_terms"]),
+    ).to_dict()
+
+
+def route_domain_term_pack(route_id: str, normalized_terms: dict[str, list[str]] | None = None) -> dict[str, list[str]]:
+    terms = normalized_terms or {}
+    route_pack = _ROUTE_TERM_PACKS.get(route_id, {})
+    must_terms = _entity_terms(route_id, terms)
+    return {
+        "must_terms": must_terms,
+        "support_terms": list(route_pack.get("support_terms", ())),
+        "weak_terms": list(route_pack.get("weak_terms", ())),
+        "downrank_terms": list(route_pack.get("downrank_terms", ())),
+    }
 
 
 def route_answer_slot_dicts(route_id: str) -> list[dict[str, Any]]:
@@ -76,7 +132,89 @@ def route_answer_slot_dicts(route_id: str) -> list[dict[str, Any]]:
     return [slot.to_dict() for slot in entry.answer_slots]
 
 
+def _slot_query_payload(question: str, slot: AnswerSlotDefinition, term_pack: dict[str, list[str]]) -> dict[str, Any]:
+    terms = _unique([*term_pack["must_terms"], *slot.terms])
+    return {
+        "slot_id": slot.slot_id,
+        "label": slot.label,
+        "required": slot.required,
+        "query": " ".join([question, *terms]).strip(),
+        "terms": terms,
+    }
+
+
+def _entity_terms(route_id: str, normalized_terms: dict[str, list[str]]) -> list[str]:
+    if route_id == "deliverable_detail":
+        aliases: list[str] = []
+        for term in normalized_terms.get("deliverable", []):
+            aliases.extend(_DELIVERABLE_TERM_ALIASES.get(term.upper(), (term,)))
+        return _unique(aliases)
+    if route_id == "tailoring_policy":
+        return list(_TAILORING_ENTITY_TERMS)
+    return []
+
+
+def _unique(values: list[str] | tuple[str, ...]) -> list[str]:
+    seen: set[str] = set()
+    items: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        key = text.casefold()
+        if text and key not in seen:
+            seen.add(key)
+            items.append(text)
+    return items
+
+
 COMMON_EXCLUDED = ("history", "template change", "local labeling compliance noise")
+DOCUMENT_IDENTITY_WEAK_TERMS = ("CT", "MI", "XP", "PEP", "document", "procedure", "process document")
+_DELIVERABLE_TERM_ALIASES = {
+    "QMP": ("QMP", "quality management plan", "质量管理计划"),
+    "PMP": ("PMP", "project management plan", "项目管理计划"),
+    "DHF": ("DHF", "design history file"),
+    "DMR": ("DMR", "device master record"),
+}
+_TAILORING_ENTITY_TERMS = ("agile", "敏捷", "tailoring", "tailor", "裁剪", "review", "评审")
+_ROUTE_TERM_PACKS: dict[str, dict[str, tuple[str, ...]]] = {
+    "stage_transition_work": {
+        "support_terms": (
+            "product validation",
+            "R4 M300",
+            "design validation",
+            "system validation test report",
+            "risk management report",
+            "usability evaluation",
+            "reliability engineering report",
+            "system stability test summary",
+            "GSPR",
+            "general safety and performance requirements",
+            "STED",
+            "summary technical documentation",
+            "clinical evaluation report",
+            "post-market surveillance",
+            "production documentation",
+            "series production samples",
+            "software transfer",
+            "embedded software",
+            "transfer protocol",
+            "process validation",
+            "country specific approvals",
+            "CE declaration",
+        ),
+        "weak_terms": DOCUMENT_IDENTITY_WEAK_TERMS,
+        "downrank_terms": ("purpose and scope", "provisional solution", "standard tailoring", "product steering group"),
+    },
+    "deliverable_detail": {
+        "support_terms": ("required contents", "shall contain", "owner", "author", "responsibility", "review approval"),
+        "weak_terms": DOCUMENT_IDENTITY_WEAK_TERMS,
+        "downrank_terms": ("purpose and scope", "provisional solution", "history", "template change", "general requirements"),
+    },
+    "tailoring_policy": {
+        "support_terms": ("mandatory review", "cannot be tailored", "tailorable review", "approval evidence", "rationale record"),
+        "weak_terms": DOCUMENT_IDENTITY_WEAK_TERMS,
+        "downrank_terms": ("purpose and scope", "provisional solution", "task and responsibilities", "history", "template change"),
+    },
+}
 
 
 _ROUTE_CATALOG: dict[str, RouteCatalogEntry] = {
@@ -253,10 +391,10 @@ _ROUTE_CATALOG: dict[str, RouteCatalogEntry] = {
         evidence_needs=("transition_scope", "work_items", "reviews_deliverables", "exit_readiness"),
         answer_slots=(
             AnswerSlotDefinition("transition_scope", "阶段范围", True, ("r4", "r5", "transition", "between", "phase", "阶段"), "缺少 R4/R5 或阶段转换边界证据。"),
-            AnswerSlotDefinition("entry_inputs", "输入/前置条件", False, ("input", "entry", "precondition", "readiness", "输入", "前置"), "本轮未召回阶段进入条件或输入证据。"),
-            AnswerSlotDefinition("work_items", "需完成工作", True, ("work", "activity", "task", "complete", "完成", "工作", "活动"), "缺少阶段之间需完成工作项证据。"),
-            AnswerSlotDefinition("reviews_deliverables", "评审/交付物", True, ("review", "deliverable", "record", "output", "评审", "交付", "记录"), "缺少评审、交付物或记录证据。"),
-            AnswerSlotDefinition("exit_readiness", "退出/进入 R5 条件", False, ("exit", "readiness", "approval", "r5", "退出", "准备", "批准"), "本轮未召回进入 R5 的 readiness 或批准条件证据。"),
+            AnswerSlotDefinition("entry_inputs", "输入/前置条件", False, ("input", "entry", "precondition", "readiness", "product validation", "after design review r4", "输入", "前置"), "本轮未召回阶段进入条件或输入证据。"),
+            AnswerSlotDefinition("work_items", "需完成工作", True, ("work", "activity", "task", "complete", "product validation", "design validation", "system validation", "system validation test report", "reliability", "reliability engineering report", "stability", "system stability test summary", "production documentation", "series production samples", "software transfer", "process validation", "gspr", "sted", "technical documentation", "clinical evaluation", "post-market surveillance", "完成", "工作", "活动"), "缺少阶段之间需完成工作项证据。"),
+            AnswerSlotDefinition("reviews_deliverables", "评审/交付物", True, ("review", "deliverable", "record", "output", "system validation test report", "risk management report", "reliability engineering report", "system stability test summary", "technical documentation", "summary technical documentation", "gspr", "sted", "clinical evaluation report", "post-market surveillance", "评审", "交付", "记录"), "缺少评审、交付物或记录证据。"),
+            AnswerSlotDefinition("exit_readiness", "退出/进入 R5 条件", False, ("exit", "readiness", "approval", "r5", "m300", "delivery release", "ce declaration", "post-market surveillance", "country specific approvals", "退出", "准备", "批准"), "本轮未召回进入 R5 的 readiness 或批准条件证据。"),
         ),
         answer_shape="transition scope -> work items -> reviews/deliverables -> exit readiness",
         risk_level="high",

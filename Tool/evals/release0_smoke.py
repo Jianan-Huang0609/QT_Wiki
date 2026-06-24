@@ -116,7 +116,7 @@ _CASES: list[dict[str, Any]] = [
         case_kind="single_doc",
         document_aliases=["mi_pep"],
         expected_route_id="stage_transition_work",
-        section_terms_any=["R4", "R5", "review", "verification", "validation"],
+        section_terms_any=["R4", "R5", "review", "verification", "validation", "确认", "系统测试", "设计转移"],
         terms_any=["R4", "R5", "transition", "work", "entry", "exit", "readiness"],
         manual_judgement="Answer should list transition work items and readiness/exit evidence, not a generic section summary.",
     ),

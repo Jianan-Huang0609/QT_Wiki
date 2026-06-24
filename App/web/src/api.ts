@@ -7,6 +7,7 @@ import type {
   MappingMatrixExport,
   QueryResult,
   ReviewPackage,
+  SessionFollowUpTurn,
   SessionHandoff,
   SlidesOutlineExport,
   WikiPage
@@ -130,7 +131,8 @@ export async function querySession(
   sourceScope: Record<string, unknown>,
   useLlm: boolean,
   topK: number,
-  modelProfile: string
+  modelProfile: string,
+  sessionContext?: { session_id: string; previous_turns: SessionFollowUpTurn[] }
 ): Promise<QueryResult> {
   const payload = await requestJson<QueryResult>("/api/session/query", {
     method: "POST",
@@ -138,6 +140,8 @@ export async function querySession(
     body: JSON.stringify({
       question,
       source_scope: sourceScope,
+      session_id: sessionContext?.session_id,
+      previous_turns: sessionContext?.previous_turns ?? [],
       use_llm: useLlm,
       model_profile: modelProfile,
       top_k: topK,

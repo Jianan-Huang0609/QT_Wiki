@@ -54,6 +54,7 @@ import type {
   NavItem,
   QueryResult,
   ReviewPackage,
+  SessionFollowUpTurn,
   SessionHandoff,
   StructuredMatch,
   SessionTreeNode,
@@ -113,6 +114,27 @@ interface SessionSourceCard {
   created_at?: string;
 }
 
+const RELEASE0_PEP_SOURCE_CARDS: SessionSourceCard[] = [
+  {
+    document_id: "doc-20260611163219-f56c6cf9",
+    file_name: "20260611163219-CT PEP AND 308 11.pdf",
+    title: "CT PEP AND 308 11",
+    status: "ready_to_publish",
+  },
+  {
+    document_id: "doc-20260611163304-4cbf18e4",
+    file_name: "20260611163304-MI PEP AND 308 11.pdf",
+    title: "MI PEP AND 308 11",
+    status: "ready_to_publish",
+  },
+  {
+    document_id: "doc-20260611163330-ea3c2cc8",
+    file_name: "20260611163330-XP PEP AND 308 11.pdf",
+    title: "XP PEP AND 308 11",
+    status: "ready_to_publish",
+  },
+];
+
 type AnswerRunStatus = "waiting" | "running" | "done" | "warning" | "deferred";
 
 interface AnswerRunStep {
@@ -126,25 +148,42 @@ interface AnswerRunStep {
 }
 
 type RichAnswerBlock =
-  | { type: "heading"; text: string; level: 2 | 3 }
+  | { type: "heading"; text: string; level: 2 | 3 | 4 }
   | { type: "paragraph"; text: string }
+  | { type: "blockquote"; text: string }
+  | { type: "code"; language: string; text: string }
+  | { type: "divider" }
+  | { type: "callout"; label: string; text: string }
+  | { type: "detail"; label: string; text: string }
   | { type: "ul"; items: string[] }
-  | { type: "ol"; items: string[]; start?: number };
+  | { type: "ol"; items: string[]; start?: number }
+  | { type: "evidence"; index: number; title: string; citationLabel: string; meaningLabel: string; meaning: string; detail: string; trace?: string };
+
+const RICH_ANSWER_DETAIL_LABELS = new Set([
+  "具体做法",
+  "具体含义",
+  "文档细节",
+  "可追溯位置",
+  "证据缺口",
+  "补充说明",
+  "要点",
+  "依据",
+  "出处",
+  "位置",
+  "边界",
+  "缺口",
+  "条件",
+  "责任",
+  "交付",
+  "下一步",
+  "风险",
+]);
 
 interface AnswerRunTraceItem {
   label: string;
   detail: string;
   meta?: string;
   status: AnswerRunStatus;
-}
-
-interface PinnedNoteItem {
-  id: string;
-  kind: "answer" | "reference";
-  title: string;
-  text: string;
-  meta: string;
-  createdAt: string;
 }
 
 export default function App() {
@@ -186,7 +225,7 @@ export default function App() {
   const [handoffBusy, setHandoffBusy] = useState(false);
   const [handoffError, setHandoffError] = useState("");
   const [selectedTreeNodeId, setSelectedTreeNodeId] = useState("");
-  const [pinnedNotes, setPinnedNotes] = useState<PinnedNoteItem[]>([]);
+  const [sessionId] = useState(() => createSessionId());
 
   useEffect(() => {
     void refreshAll();
@@ -241,7 +280,6 @@ export default function App() {
     activeChatResult?.citations.find((item) => item.citation_id === selectedCitationId) ?? activeChatResult?.citations[0];
   const activeSessionDocumentId = currentDocumentId || selectedReviewPackage?.document_id || "";
   const selectedTreeNode = sessionHandoff?.tree.items.find((item) => item.node_id === selectedTreeNodeId);
-  const activeSourceName = sessionHandoff?.source.file_name || sourceNameForDocument(activeSessionDocumentId, reviewPackages, ingestRuns) || "All Sources";
   const sessionSourceCards = useMemo(() => buildSessionSourceCards(reviewPackages, ingestRuns), [reviewPackages, ingestRuns]);
   const selectedSessionDocumentIds = useMemo(
     () => selectedSourceIds.filter((documentId) => sessionSourceCards.some((card) => card.document_id === documentId)),
@@ -252,6 +290,18 @@ export default function App() {
     : activeSessionDocumentId
       ? [activeSessionDocumentId]
       : [];
+  const sessionScopeName = effectiveSessionDocumentIds.length === 1
+    ? sourceNameForDocument(effectiveSessionDocumentIds[0], reviewPackages, ingestRuns) || "Selected Source"
+    : effectiveSessionDocumentIds.length
+      ? `${effectiveSessionDocumentIds.length} sources selected`
+      : "All Sources";
+  const sessionScopeStatus = effectiveSessionDocumentIds.length === 1
+    ? (sessionHandoff?.document_id === effectiveSessionDocumentIds[0]
+        ? sessionHandoff.source.parse_status
+        : sessionSourceCards.find((item) => item.document_id === effectiveSessionDocumentIds[0])?.status) || "parsed"
+    : effectiveSessionDocumentIds.length
+      ? "parsed"
+      : "unknown";
 
   useEffect(() => {
     setSelectedSourceIds((current) => {
@@ -422,6 +472,8 @@ export default function App() {
       return;
     }
     const chatId = createChatId();
+    const sessionSourceScope = effectiveSessionDocumentIds.length ? { mode: "selected_docs", document_ids: effectiveSessionDocumentIds } : null;
+    const previousTurns = sessionSourceScope ? buildSessionPreviousTurns(chatHistory, sessionSourceScope) : [];
     setBusy("query");
     setChatHistory((current) => [
       {
@@ -436,9 +488,11 @@ export default function App() {
     setSelectedChatId(chatId);
     setQuestion("");
     try {
-      const sessionSourceScope = effectiveSessionDocumentIds.length ? { mode: "selected_docs", document_ids: effectiveSessionDocumentIds } : null;
       const result = sessionSourceScope
-        ? await querySession(nextQuestion, sessionSourceScope, useLlm, Math.max(8, Math.min(topKPages, 30)), modelProfile)
+        ? await querySession(nextQuestion, sessionSourceScope, useLlm, Math.max(8, Math.min(topKPages, 30)), modelProfile, {
+            session_id: sessionId,
+            previous_turns: previousTurns,
+          })
         : await queryWiki(nextQuestion, useLlm, topKPages, modelProfile);
       setQueryResult(result);
       setSelectedCitationId(result.citations[0]?.citation_id ?? "");
@@ -565,7 +619,7 @@ export default function App() {
       }
       setToast(`文档已解析：${result.section_count} 个章节 / ${result.fragment_count} 个片段。低置信度内容可在解析详情中校正，LLM ${useLlm ? "已开启" : "未开启"}。`);
       await refreshWorkspaceData();
-      setActiveView("ingest");
+      setActiveView("query");
       setActiveDrawer("context");
     } catch (error) {
       setToast(`上传失败：${errorMessage(error)}`);
@@ -637,45 +691,6 @@ export default function App() {
     }
   }
 
-  function handlePinAnswer() {
-    const result = activeChatEntry?.result ?? queryResult;
-    if (!result) {
-      setToast("先完成一次问答，再 pin 到 Note。");
-      return;
-    }
-    setPinnedNotes((current) => [
-      {
-        id: `pin-answer-${Date.now()}`,
-        kind: "answer",
-        title: activeChatEntry?.question || "Pinned answer",
-        text: result.answer.slice(0, 520),
-        meta: `${result.used_llm ? "LLM" : "Rule"} · ${result.confidence} · ${result.citations.length} refs`,
-        createdAt: new Date().toISOString(),
-      },
-      ...current,
-    ]);
-    setToast("已将当前回答 pin 到 Session Note。");
-  }
-
-  function handlePinCitation(citation?: Citation) {
-    if (!citation) {
-      setToast("先选择一个 reference，再 pin 到 Note。");
-      return;
-    }
-    setPinnedNotes((current) => [
-      {
-        id: `pin-reference-${Date.now()}`,
-        kind: "reference",
-        title: citationTitle(citation),
-        text: citation.quote || "暂无摘录。",
-        meta: citationMeta(citation),
-        createdAt: new Date().toISOString(),
-      },
-      ...current,
-    ]);
-    setToast("已将当前 reference pin 到 Session Note。");
-  }
-
   return (
     <div className="app session-workspace-app">
       <header className="session-topbar">
@@ -688,12 +703,12 @@ export default function App() {
             <h1>PEP Knowledge Session</h1>
           </div>
         </div>
-        <div className="session-scope-strip" aria-label="当前 session scope">
-          <span>Session PEP-R2</span>
-          <span>{activeSourceName}</span>
-          <span>{sessionHandoff?.source.parse_status || (handoffBusy ? "loading handoff" : "handoff idle")}</span>
-          <span>{formatEvalSummary(sessionHandoff?.quality.eval_summary) || `${indexStatus?.sources ?? 0} sources indexed`}</span>
-          <span>{useLlm ? modelProfileLabel(modelProfile) : "Rule mode"}</span>
+        <div className="session-scope-strip" aria-label="当前 source">
+          <span title={sessionScopeName}>{sessionScopeName}</span>
+          <SourceStatusPill
+            status={sessionScopeStatus}
+            busy={handoffBusy || busy === "upload"}
+          />
         </div>
         <div className="session-actions">
           <label className="model-select">
@@ -743,15 +758,8 @@ export default function App() {
 
         <section className="session-chat-stage" aria-label="Session chat">
           <div className="session-chat-titlebar">
-            <div>
-              <p className="eyebrow">Ask Workspace</p>
-              <h2>围绕当前 source 提问，回答内可展开思考摘要和可定位引用</h2>
-            </div>
-            <div className="session-metrics">
-              <Metric label="当前来源" value={sessionHandoff ? "Selected" : "All"} />
-              <Metric label="引用" value={String(activeChatResult?.citations.length ?? 0)} />
-              <Metric label="Note" value={String(pinnedNotes.length)} />
-            </div>
+            <h2>Ask Workspace</h2>
+            <span className="session-chat-status">{`${activeChatResult?.citations.length ?? 0} references`}</span>
           </div>
           <ChatbotPanel
             question={question}
@@ -769,7 +777,6 @@ export default function App() {
             onSubmit={() => void handleQuerySubmit()}
             onAskSuggested={handleSuggestedQuestion}
             onSelectCitation={setSelectedCitationId}
-            onPinAnswer={handlePinAnswer}
           />
         </section>
 
@@ -780,7 +787,6 @@ export default function App() {
           handoffBusy={handoffBusy}
           handoffError={handoffError}
           onSelectCitation={setSelectedCitationId}
-          onPinCitation={handlePinCitation}
         />
       </main>
 
@@ -857,9 +863,9 @@ function SessionSourcePanel({
         <div className="source-panel-body">
           {handoffError ? <EmptyState title="当前 source 暂不可预览" text={handoffError} /> : null}
           <section className="source-scope-card source-selection-summary">
-            <span>Source scope</span>
+            <span>Resources</span>
             <strong>{selectedSourceIds.length ? `${selectedSourceIds.length} selected` : "No source selected"}</strong>
-            <small>勾选进入本轮 Chat；点击文件名只切换当前预览 source。</small>
+            <small>{indexStatus?.sources ?? sourceCards.length} indexed</small>
           </section>
           <div className="source-list clean-source-list">
             {sourceCards.length ? (
@@ -874,13 +880,13 @@ function SessionSourcePanel({
                       checked={selectedSourceIds.includes(item.document_id)}
                       onChange={() => onToggleSource(item.document_id)}
                     />
-                    <span>{selectedSourceIds.includes(item.document_id) ? "Selected" : "Use"}</span>
+                    <span>{selectedSourceIds.includes(item.document_id) ? "已选" : "选择"}</span>
                   </label>
                   <button className="source-focus-button" type="button" onClick={() => onSelectDocument(item.document_id)}>
                     <strong>{item.file_name || item.title}</strong>
                     <span>{sourceReadableMeta(item)}</span>
                   </button>
-                  <StatusBadge status={item.status} />
+                  <SourceStatusBadge status={item.status} />
                 </article>
               ))
             ) : (
@@ -949,7 +955,6 @@ function SessionRightPanel({
   handoffBusy,
   handoffError,
   onSelectCitation,
-  onPinCitation,
 }: {
   activeChatResult: QueryResult | null;
   selectedCitation?: Citation;
@@ -957,56 +962,35 @@ function SessionRightPanel({
   handoffBusy: boolean;
   handoffError: string;
   onSelectCitation: (id: string) => void;
-  onPinCitation: (citation?: Citation) => void;
 }) {
   const citations = activeChatResult?.citations ?? [];
-  const activeReference = selectedCitation ?? citations[0];
   return (
     <aside className="session-right-panel ask-reference-panel" aria-label="Reference viewer">
       <div className="ask-side-heading">
-        <div>
-          <p className="eyebrow">Reference</p>
-          <h2>原文返回</h2>
-        </div>
-        <span className="count-pill">{citations.length} refs</span>
+        <h2>References</h2>
+        <span className="count-pill">{citations.length}</span>
       </div>
 
       <div className="right-panel-body ask-side-body">
-        <section className="session-note-card reference-viewer-card">
-          <div className="reference-card-head">
-            <h3>当前原文</h3>
-            <button className="mini-action" type="button" onClick={() => onPinCitation(activeReference)} disabled={!activeReference}>
-              Pin
-            </button>
-          </div>
-          {handoffBusy ? <EmptyState title="正在加载 source" text="回答完成后会显示命中的原文 quote。" /> : null}
+        <section className="session-note-card citation-stack-card reference-list-card">
+          {handoffBusy ? <EmptyState title="正在加载 source" text="" /> : null}
           {handoffError ? <EmptyState title="Reference 暂不可用" text={handoffError} /> : null}
           {!handoffBusy && !handoffError ? (
-            activeReference ? (
-              <ReferenceCard citation={activeReference} active={true} onSelect={onSelectCitation} onPin={onPinCitation} />
+            citations.length ? (
+              <div className="citation-stack readable-citation-stack">
+                {citations.map((citation) => (
+                  <ReferenceCard
+                    citation={citation}
+                    key={citation.citation_id}
+                    active={selectedCitationId === citation.citation_id}
+                    onSelect={onSelectCitation}
+                  />
+                ))}
+              </div>
             ) : (
-              <EmptyState title="等待原文返回" text="完成一次提问后，这里会显示文件、章节和 quote。" />
+              <EmptyState title="暂无原文" text="" />
             )
           ) : null}
-        </section>
-
-        <section className="session-note-card citation-stack-card">
-          <h3>本轮返回</h3>
-          <div className="citation-stack readable-citation-stack">
-            {citations.length ? (
-              citations.map((citation) => (
-                <ReferenceCard
-                  citation={citation}
-                  key={citation.citation_id}
-                  active={selectedCitationId === citation.citation_id}
-                  onSelect={onSelectCitation}
-                  onPin={onPinCitation}
-                />
-              ))
-            ) : (
-              <EmptyState title="暂无原文" text="Ask Workspace 会把下一次回答命中的原文整理到这里。" />
-            )}
-          </div>
         </section>
       </div>
     </aside>
@@ -1795,7 +1779,6 @@ function ChatbotPanel({
   onSubmit,
   onAskSuggested,
   onSelectCitation,
-  onPinAnswer,
 }: {
   question: string;
   setQuestion: (value: string) => void;
@@ -1812,7 +1795,6 @@ function ChatbotPanel({
   onSubmit: () => void;
   onAskSuggested: (question: string) => void;
   onSelectCitation: (id: string) => void;
-  onPinAnswer: () => void;
 }) {
   const result = activeChatEntry?.result ?? null;
   const suggestedQuestions = result?.suggested_questions?.length ? result.suggested_questions : defaultSuggestedQuestions;
@@ -1822,11 +1804,8 @@ function ChatbotPanel({
     <div className="session-chatbot-shell">
       <section className="chat-transcript-panel" aria-label="Session chat transcript">
         <div className="chat-transcript-head">
-          <div>
-            <p className="eyebrow">Process Chat</p>
-            <h3>回答必须回到证据</h3>
-          </div>
-          <span className="chatbot-mode">{result?.used_llm ? "LLM" : activeChatEntry?.status === "error" ? "失败" : "Evidence first"}</span>
+          <strong>{activeChatEntry?.question || "Chat"}</strong>
+          <span className="chatbot-mode">{result?.citations.length ? `${result.citations.length} refs` : activeChatEntry?.status === "error" ? "失败" : busy === "query" ? "running" : ""}</span>
         </div>
         <div className="chat-message-list">
           {transcriptEntries.length ? (
@@ -1835,13 +1814,12 @@ function ChatbotPanel({
                 entry={entry}
                 isActive={entry.id === activeChatEntry?.id}
                 key={entry.id}
-                onPinAnswer={onPinAnswer}
                 onSelectCitation={onSelectCitation}
                 sessionHandoff={sessionHandoff}
               />
             ))
           ) : (
-            <EmptyState title="开始提问" text="底部输入问题，答案会在这里形成消息流，并把 citation 和 evidence 放到右侧核查。" />
+            <EmptyState title="开始提问" text="输入问题后，答案会出现在这里。" />
           )}
         </div>
       </section>
@@ -1897,13 +1875,11 @@ function ChatbotPanel({
 function ChatExchange({
   entry,
   isActive,
-  onPinAnswer,
   onSelectCitation,
   sessionHandoff,
 }: {
   entry: ChatHistoryEntry;
   isActive: boolean;
-  onPinAnswer: () => void;
   onSelectCitation: (id: string) => void;
   sessionHandoff: SessionHandoff | null;
 }) {
@@ -1926,11 +1902,6 @@ function ChatExchange({
           <ChatThoughtDisclosure steps={thoughtSteps} isRunning={false} />
           <RichAnswer text={result.answer} citations={result.citations} onSelectCitation={onSelectCitation} />
           <div className="message-action-row">
-            {isActive ? (
-              <button className="mini-action" type="button" onClick={onPinAnswer}>
-                Pin answer
-              </button>
-            ) : null}
             <span>{result.citations.length} readable references</span>
           </div>
           {result.structured_matches?.length ? (
@@ -2463,6 +2434,67 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status-badge ${status}`}>{humanStatus(status)}</span>;
 }
 
+function SourceStatusBadge({ status }: { status: string }) {
+  const kind = sourceStatusKind(status);
+  return (
+    <span className={`source-status-badge ${kind}`} title={humanStatus(status)}>
+      {kind === "ready" ? <Check size={14} /> : kind === "loading" ? <Loader2 className="spin" size={14} /> : null}
+      {sourceStatusLabel(status)}
+    </span>
+  );
+}
+
+function SourceStatusPill({ status, busy }: { status: string; busy: boolean }) {
+  const displayStatus = busy ? "loading" : status;
+  const kind = sourceStatusKind(displayStatus);
+  return (
+    <span className={`source-status-pill ${kind}`}>
+      {busy ? <Loader2 className="spin" size={14} /> : kind === "ready" ? <Check size={14} /> : null}
+      {busy ? "解析中" : sourceStatusLabel(displayStatus)}
+    </span>
+  );
+}
+
+function sourceStatusKind(status: string) {
+  if (["ready_to_publish", "published", "approved", "identity_confirmed", "confirmed", "parsed"].includes(status)) {
+    return "ready";
+  }
+  if (["loading", "running", "processing", "generated"].includes(status)) {
+    return "loading";
+  }
+  if (["pending", "pending_review", "needs_review", "pending_revision", "unknown"].includes(status)) {
+    return "review";
+  }
+  if (["failed", "error", "rejected"].includes(status)) {
+    return "error";
+  }
+  return "review";
+}
+
+function sourceStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    ready_to_publish: "已解析",
+    published: "已解析",
+    approved: "已解析",
+    identity_confirmed: "已解析",
+    confirmed: "已解析",
+    parsed: "已解析",
+    loading: "解析中",
+    running: "解析中",
+    processing: "解析中",
+    generated: "解析中",
+    pending: "待复核",
+    pending_review: "待复核",
+    needs_review: "待复核",
+    pending_revision: "待复核",
+    unknown: "待解析",
+    failed: "失败",
+    error: "失败",
+    rejected: "失败",
+  };
+  return labels[status] ?? humanStatus(status);
+}
+
 function RiskBadge({ risk }: { risk: string }) {
   return <span className={`risk-badge ${risk}`}>{risk === "high" ? "高" : risk === "medium" ? "中" : "低"}</span>;
 }
@@ -2481,55 +2513,51 @@ function ReferenceCard({
   citation,
   active = false,
   onSelect,
-  onPin,
 }: {
   citation: Citation;
   active?: boolean;
   onSelect: (id: string) => void;
-  onPin?: (citation?: Citation) => void;
 }) {
-  const detailRows = citationDetailRows(citation);
   const contextSegments = citationContextSegments(citation);
   return (
     <article className={`reference-card ${active ? "active" : ""}`}>
       <div className="reference-card-main">
         <button className="reference-select-button" type="button" onClick={() => onSelect(citation.citation_id)}>
-          <strong>{citationTitle(citation)}</strong>
-          <span>{citationMeta(citation)}</span>
-          <p>{citation.quote || "暂无摘录。"}</p>
+          <strong>{citationResourceLabel(citation)}</strong>
+          <span>{citationLocationLabel(citation)}</span>
+          <p>{citationOriginalText(citation)}</p>
         </button>
-        {onPin ? (
-          <button className="mini-action" type="button" onClick={() => onPin(citation)}>
-            Pin
-          </button>
-        ) : null}
       </div>
       <details className="reference-expand" open={active || undefined}>
         <summary>
           <ChevronRight size={14} />
-          原文与定位
+          展开原文
         </summary>
-        <blockquote>{citation.quote || "暂无摘录。"}</blockquote>
+        <section className="reference-readable-section">
+          <span>返回原文</span>
+          <ReferenceTextBlock text={citationOriginalText(citation)} />
+        </section>
         {contextSegments.length ? (
-          <div className="reference-context-window" aria-label="引用前后文">
+          <div className="reference-context-window" aria-label="引用上下文">
             {contextSegments.map((segment) => (
               <section className={`reference-context-segment ${segment.kind}`} key={segment.label}>
                 <span>{segment.label}</span>
-                <p>{segment.text}</p>
+                <ReferenceTextBlock text={segment.text} />
               </section>
             ))}
           </div>
         ) : null}
-        <dl>
-          {detailRows.map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
-          ))}
-        </dl>
       </details>
     </article>
+  );
+}
+
+function ReferenceTextBlock({ text }: { text: string }) {
+  const paragraphs = referenceTextParagraphs(text);
+  return (
+    <div className="reference-readable-text">
+      {paragraphs.length ? paragraphs.map((paragraph, index) => <p key={`${paragraph}-${index}`}>{paragraph}</p>) : <p>暂无摘录。</p>}
+    </div>
   );
 }
 
@@ -2623,6 +2651,37 @@ function createChatId() {
   return `chat-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
 }
 
+function createSessionId() {
+  return `session-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function buildSessionPreviousTurns(chatHistory: ChatHistoryEntry[], sourceScope: Record<string, unknown>): SessionFollowUpTurn[] {
+  const previous = chatHistory.find((entry) => entry.status === "success" && entry.result);
+  if (!previous?.result) {
+    return [];
+  }
+  return [
+    {
+      turn_id: previous.id,
+      question: previous.question,
+      answer_summary: shortText(previous.result.answer.replace(/\s+/g, " ").trim(), 520),
+      source_scope: sourceScope,
+      citations: previous.result.citations.slice(0, 4).map((citation) => ({
+        citation_id: citation.citation_id,
+        document_id: citation.document_id,
+        file_name: citation.file_name,
+        fragment_id: citation.fragment_id,
+        section_id: citation.section_id,
+        evidence_id: citation.evidence_id,
+        anchor_label: citation.anchor_label,
+        page: citationPageLabel(citation),
+        quote: shortText(citation.quote || citation.source_context?.context_text || "", 260),
+        source_context: citation.source_context,
+      })),
+    },
+  ];
+}
+
 function formatRunTimestamp(value: string) {
   return value.replace("T", " ").slice(0, 16);
 }
@@ -2707,6 +2766,19 @@ function buildSessionSourceCards(reviewPackages: ReviewPackage[], ingestRuns: In
       created_at: existing?.created_at,
     });
   });
+  RELEASE0_PEP_SOURCE_CARDS.forEach((sourceCard) => {
+    const existing = byDocument.get(sourceCard.document_id);
+    byDocument.set(sourceCard.document_id, {
+      ...sourceCard,
+      status: existing?.status || sourceCard.status,
+      section_count: existing?.section_count ?? sourceCard.section_count,
+      review_count: existing?.review_count ?? sourceCard.review_count,
+      created_at: existing?.created_at ?? sourceCard.created_at,
+    });
+  });
+  if (RELEASE0_PEP_SOURCE_CARDS.every((sourceCard) => byDocument.has(sourceCard.document_id))) {
+    return RELEASE0_PEP_SOURCE_CARDS.map((sourceCard) => byDocument.get(sourceCard.document_id) ?? sourceCard);
+  }
   const cards = Array.from(byDocument.values()).sort((left, right) => {
     const leftPep = isPreferredPepSource(left) ? 1 : 0;
     const rightPep = isPreferredPepSource(right) ? 1 : 0;
@@ -2727,6 +2799,10 @@ function sourceNameForDocument(documentId: string, reviewPackages: ReviewPackage
   if (!documentId) {
     return "";
   }
+  const release0Source = RELEASE0_PEP_SOURCE_CARDS.find((item) => item.document_id === documentId);
+  if (release0Source) {
+    return release0Source.file_name;
+  }
   const run = ingestRuns.find((item) => item.document_id === documentId);
   if (run?.file_name) {
     return run.file_name;
@@ -2736,10 +2812,14 @@ function sourceNameForDocument(documentId: string, reviewPackages: ReviewPackage
 }
 
 function sourceReadableMeta(card: SessionSourceCard) {
-  return [
-    card.section_count !== undefined ? `${card.section_count} sections` : "parsed file",
-    card.review_count ? `${card.review_count} review items` : "ready",
-  ].join(" · ");
+  const parts = [];
+  if (card.section_count !== undefined) {
+    parts.push(`${card.section_count} 个章节`);
+  }
+  if (card.review_count) {
+    parts.push(`${card.review_count} 项待复核`);
+  }
+  return parts.join(" · ") || "文档已解析";
 }
 
 function sameStringArray(left: string[], right: string[]) {
@@ -2811,11 +2891,11 @@ function buildAnswerRunSteps(
     },
     {
       id: "memory",
-      label: "记忆回写",
-      detail: hasResult ? "可 pin 到 Session Note" : "等待回答完成",
+      label: "上下文",
+      detail: hasResult ? "已更新 follow-up 上下文" : "等待回答完成",
       status: hasResult ? "done" : "waiting",
-      thoughts: hasResult ? ["当前结果可手动 pin 到 Session Note，持久化 memory store 留给下一阶段。"] : [],
-      rawOutputs: { pinnable: Boolean(result) },
+      thoughts: hasResult ? ["本轮问题、source scope 和引用摘要会进入下一轮追问上下文。"] : [],
+      rawOutputs: { follow_up_ready: Boolean(result) },
     },
   ];
 }
@@ -2871,7 +2951,7 @@ function answerRunThoughts(step: AnswerRunStepPayload) {
     ];
   }
   if (step.step_id === "memory") {
-    return ["回答和 reference 可以 pin 到 Session Note。", "持久化 session memory store 仍在下一阶段。"];
+    return ["保留本轮问题、source scope、答案摘要和引用摘要，用于下一轮追问。"];
   }
   return step.summary ? [step.summary] : [];
 }
@@ -3235,6 +3315,9 @@ function parseRichAnswerBlocks(text: string): RichAnswerBlock[] {
   let bullets: string[] = [];
   let numbers: string[] = [];
   let numberStart: number | undefined;
+  let pendingDetailLabel: string | undefined;
+  let quoteLines: string[] = [];
+  let codeBlock: { language: string; lines: string[] } | null = null;
 
   const flushParagraph = () => {
     if (paragraph.length) {
@@ -3255,25 +3338,73 @@ function parseRichAnswerBlocks(text: string): RichAnswerBlock[] {
       numberStart = undefined;
     }
   };
+  const flushQuotes = () => {
+    if (quoteLines.length) {
+      blocks.push({ type: "blockquote", text: quoteLines.join("\n") });
+      quoteLines = [];
+    }
+  };
   const flushAll = () => {
     flushParagraph();
     flushBullets();
     flushNumbers();
+    flushQuotes();
   };
 
   text.split(/\r?\n/).forEach((line) => {
+    const fence = line.match(/^```\s*([A-Za-z0-9_-]+)?\s*$/);
+    if (codeBlock) {
+      if (fence) {
+        blocks.push({ type: "code", language: codeBlock.language, text: codeBlock.lines.join("\n") });
+        codeBlock = null;
+      } else {
+        codeBlock.lines.push(line.replace(/\s+$/, ""));
+      }
+      return;
+    }
     const trimmed = line.trim();
+    if (fence) {
+      flushAll();
+      codeBlock = { language: fence[1] || "text", lines: [] };
+      return;
+    }
     if (!trimmed) {
+      pendingDetailLabel = undefined;
       flushAll();
       return;
     }
-    const markdownHeading = trimmed.match(/^(#{2,3})\s+(.+)$/);
+    const quote = trimmed.match(/^>\s?(.*)$/);
+    if (quote) {
+      flushParagraph();
+      flushBullets();
+      flushNumbers();
+      quoteLines.push(quote[1]);
+      return;
+    }
+    flushQuotes();
+    if (/^(-{3,}|_{3,}|\*{3,})$/.test(trimmed)) {
+      flushAll();
+      blocks.push({ type: "divider" });
+      return;
+    }
+    const bareDetailLabel = RICH_ANSWER_DETAIL_LABELS.has(trimmed) ? trimmed : undefined;
+    if (pendingDetailLabel && !bareDetailLabel) {
+      flushAll();
+      blocks.push({ type: "detail", label: pendingDetailLabel, text: trimmed });
+      pendingDetailLabel = undefined;
+      return;
+    }
+    const markdownHeading = trimmed.match(/^(#{2,4})\s+(.+)$/);
     const boldHeading = trimmed.match(/^\*\*(.+?)\*\*[:：]?$/);
     const compactHeading = trimmed.match(/^([^。.!?！？]{2,28})[:：]$/);
     if (markdownHeading || boldHeading || compactHeading) {
       flushAll();
       const headingText = markdownHeading?.[2] ?? boldHeading?.[1] ?? compactHeading?.[1] ?? trimmed;
-      blocks.push({ type: "heading", text: headingText, level: markdownHeading?.[1] === "###" ? 3 : 2 });
+      const markdownLevel = markdownHeading?.[1].length;
+      const isNumberedHeading = /^\d+[.)]\s+/.test(headingText);
+      const isPrimaryCompactHeading = /^(操作主线|关键结论|证据回答|需要补证或人审确认|需要人审确认的缺口)$/.test(headingText);
+      const headingLevel = isNumberedHeading ? 3 : markdownLevel === 4 ? 4 : markdownLevel === 3 ? 3 : compactHeading && !isPrimaryCompactHeading ? 4 : 2;
+      blocks.push({ type: "heading", text: headingText, level: headingLevel });
       return;
     }
     const bullet = trimmed.match(/^[-*]\s+(.+)$/);
@@ -3281,6 +3412,29 @@ function parseRichAnswerBlocks(text: string): RichAnswerBlock[] {
       flushParagraph();
       flushNumbers();
       bullets.push(bullet[1]);
+      return;
+    }
+    const evidenceLine = parseEvidenceAnswerLine(trimmed);
+    if (evidenceLine) {
+      flushAll();
+      blocks.push(evidenceLine);
+      return;
+    }
+    const detailLine = parseRichAnswerDetailLine(trimmed);
+    if (detailLine) {
+      flushAll();
+      blocks.push(detailLine);
+      return;
+    }
+    const calloutLine = parseRichAnswerCalloutLine(trimmed);
+    if (calloutLine) {
+      flushAll();
+      blocks.push(calloutLine);
+      return;
+    }
+    if (bareDetailLabel) {
+      flushAll();
+      pendingDetailLabel = bareDetailLabel;
       return;
     }
     const numbered = trimmed.match(/^\d+[.)]\s+(.+)$/);
@@ -3298,8 +3452,45 @@ function parseRichAnswerBlocks(text: string): RichAnswerBlock[] {
     flushNumbers();
     paragraph.push(trimmed);
   });
+  const unfinishedCodeBlock = codeBlock as { language: string; lines: string[] } | null;
+  if (unfinishedCodeBlock) {
+    blocks.push({ type: "code", language: unfinishedCodeBlock.language, text: unfinishedCodeBlock.lines.join("\n") });
+  }
   flushAll();
   return blocks;
+}
+
+function parseRichAnswerDetailLine(line: string): RichAnswerBlock | null {
+  const match = line.match(/^([^：:]{2,12})[:：]\s*(.+)$/);
+  if (!match || !RICH_ANSWER_DETAIL_LABELS.has(match[1])) {
+    return null;
+  }
+  return { type: "detail", label: match[1], text: match[2] };
+}
+
+function parseEvidenceAnswerLine(line: string): RichAnswerBlock | null {
+  const match = line.match(/^(\d+)[.)]\s+(.+?)\s+(\[c\d+\])\s+(具体(?:做法|含义)：)(.+?)\s+文档细节：(.+?)(?:\s+可追溯位置：(.+))?$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    type: "evidence",
+    index: Number.parseInt(match[1], 10),
+    title: match[2].trim(),
+    citationLabel: match[3],
+    meaningLabel: match[4].replace("：", ""),
+    meaning: match[5].trim(),
+    detail: match[6].trim(),
+    trace: match[7]?.trim(),
+  };
+}
+
+function parseRichAnswerCalloutLine(line: string): RichAnswerBlock | null {
+  const match = line.match(/^(结论|注意|风险|边界|证据边界|下一步|建议|缺口)[:：]\s*(.+)$/);
+  if (!match) {
+    return null;
+  }
+  return { type: "callout", label: match[1], text: match[2] };
 }
 
 function renderRichAnswerBlock(
@@ -3313,6 +3504,60 @@ function renderRichAnswerBlock(
   }
   if (block.type === "paragraph") {
     return <p className="rich-answer-paragraph" key={`paragraph-${index}`}>{renderInlineAnswer(block.text, citationById, onSelectCitation)}</p>;
+  }
+  if (block.type === "blockquote") {
+    return (
+      <blockquote className="rich-answer-quote" key={`quote-${index}`}>
+        {block.text.split(/\n+/).map((line, lineIndex) => (
+          <p key={`${line}-${lineIndex}`}>{renderInlineAnswer(line, citationById, onSelectCitation)}</p>
+        ))}
+      </blockquote>
+    );
+  }
+  if (block.type === "code") {
+    return (
+      <figure className="rich-answer-code" key={`code-${index}`}>
+        <figcaption>{block.language === "text" ? "Plain Text" : block.language}</figcaption>
+        <pre><code>{block.text}</code></pre>
+      </figure>
+    );
+  }
+  if (block.type === "divider") {
+    return <hr className="rich-answer-divider" key={`divider-${index}`} />;
+  }
+  if (block.type === "callout") {
+    return (
+      <aside className="rich-answer-callout" key={`callout-${index}`}>
+        <span>{block.label}</span>
+        <p>{renderInlineAnswer(block.text, citationById, onSelectCitation)}</p>
+      </aside>
+    );
+  }
+  if (block.type === "detail") {
+    return (
+      <div className="rich-answer-detail" key={`detail-${index}`}>
+        <span>{block.label}</span>
+        <p>{renderInlineAnswer(block.text, citationById, onSelectCitation)}</p>
+      </div>
+    );
+  }
+  if (block.type === "evidence") {
+    return (
+      <article className="rich-answer-evidence" key={`evidence-${index}`}>
+        <div className="rich-answer-evidence-title">
+          <span>{block.index}</span>
+          <strong>{renderInlineAnswer(`${block.title} ${block.citationLabel}`, citationById, onSelectCitation)}</strong>
+        </div>
+        <div className="rich-answer-evidence-grid">
+          <span>{block.meaningLabel}</span>
+          <p>{renderInlineAnswer(block.meaning, citationById, onSelectCitation)}</p>
+          <span>文档细节</span>
+          <p>{renderInlineAnswer(block.detail, citationById, onSelectCitation)}</p>
+          {block.trace ? <span>可追溯位置</span> : null}
+          {block.trace ? <p>{renderInlineAnswer(block.trace, citationById, onSelectCitation)}</p> : null}
+        </div>
+      </article>
+    );
   }
   if (block.type === "ul") {
     return (
@@ -3371,9 +3616,76 @@ function shortText(value: string, maxLength: number) {
 }
 
 function citationTitle(citation: Citation) {
-  const locator = citationPageLabel(citation) || citation.anchor_label || citation.fragment_id || "source";
-  const section = citation.page_title || citation.section_id || citation.file_name || "Reference";
-  return `${citation.citation_id} · ${locator} · ${section}`;
+  const section = citation.page_title || citation.section_id || "Reference";
+  return [citationResourceLabel(citation), citationLocationLabel(citation), section].filter(Boolean).join(" · ");
+}
+
+function citationResourceLabel(citation: Citation) {
+  return citation.file_name || citation.document_id || "resource";
+}
+
+function citationLocationLabel(citation: Citation) {
+  return citationPageLabel(citation) || citation.anchor_label || citation.source_context?.anchor_label || citation.fragment_id || citation.section_id || "source";
+}
+
+function citationOriginalText(citation: Citation) {
+  return citation.quote || citation.source_context?.context_text || "暂无摘录。";
+}
+
+function referenceTextParagraphs(text: string) {
+  const normalized = text
+    .replace(/\r/g, "\n")
+    .replace(/\s*•\s*/g, "\n• ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (!normalized) {
+    return [];
+  }
+  return normalized
+    .split(/\n+/)
+    .flatMap((part) => wrapReferenceParagraph(part.trim(), 360))
+    .filter(Boolean);
+}
+
+function wrapReferenceParagraph(text: string, maxLength: number): string[] {
+  if (text.length <= maxLength) {
+    return [text];
+  }
+  const sentences = text.split(/(?<=[。！？.!?])\s+/).filter(Boolean);
+  if (sentences.length <= 1) {
+    return chunkLongReferenceText(text, maxLength);
+  }
+  const paragraphs: string[] = [];
+  let current = "";
+  sentences.forEach((sentence) => {
+    const next = current ? `${current} ${sentence}` : sentence;
+    if (next.length > maxLength && current) {
+      paragraphs.push(current);
+      current = sentence;
+    } else {
+      current = next;
+    }
+  });
+  if (current) {
+    paragraphs.push(...chunkLongReferenceText(current, maxLength));
+  }
+  return paragraphs;
+}
+
+function chunkLongReferenceText(text: string, maxLength: number): string[] {
+  const chunks: string[] = [];
+  let rest = text.trim();
+  while (rest.length > maxLength) {
+    const boundary = Math.max(rest.lastIndexOf(";", maxLength), rest.lastIndexOf(",", maxLength), rest.lastIndexOf(" ", maxLength));
+    const splitAt = boundary > Math.floor(maxLength * 0.55) ? boundary + 1 : maxLength;
+    chunks.push(rest.slice(0, splitAt).trim());
+    rest = rest.slice(splitAt).trim();
+  }
+  if (rest) {
+    chunks.push(rest);
+  }
+  return chunks;
 }
 
 function citationMeta(citation: Citation) {
@@ -3417,9 +3729,9 @@ function citationContextSegments(citation: Citation): { label: string; text: str
     return [];
   }
   return [
-    { label: "引用前文", text: context.context_before ?? "", kind: "before" as const },
-    { label: "命中上下文", text: context.context_text ?? "", kind: "current" as const },
-    { label: "引用后文", text: context.context_after ?? "", kind: "after" as const },
+    { label: "前文", text: context.context_before ?? "", kind: "before" as const },
+    { label: "原文段落", text: context.context_text ?? "", kind: "current" as const },
+    { label: "后文", text: context.context_after ?? "", kind: "after" as const },
   ].filter((item) => item.text.trim().length > 0);
 }
 
@@ -3634,6 +3946,11 @@ function humanStatus(status: string) {
     approved: "已批准",
     published: "已发布",
     generated: "已生成",
+    parsed: "已解析",
+    loading: "解析中",
+    needs_review: "待复核",
+    failed: "失败",
+    error: "失败",
     rejected: "已拒绝",
     high: "高置信"
   };

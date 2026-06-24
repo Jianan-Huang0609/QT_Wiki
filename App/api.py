@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -31,9 +32,10 @@ from Tool.contracts.canonical import load_canonical_document
 from Tool.chunking.section_chunks import build_section_chunks
 from Tool.pipelines.common import PARSED_DIR
 from Tool.retrieval.retrievers import FullTextRetriever, HybridRetriever, RuleSectionRetriever
+from Tool.retrieval.section_index import RetrievalHit
 from Tool.workflows.answer import AnswerEvidencePackage, EvidenceItem, build_answer_evidence_package, parse_question_intent
 from Tool.workflows.document_parse import build_parse_workflow_summary
-from Tool.workflows.route_catalog import get_route_entry, route_answer_slot_dicts, route_query_terms
+from Tool.workflows.route_catalog import get_route_entry, route_answer_slot_dicts, route_query_pack, route_query_terms
 from wiki.builders.bootstrap import PAGE_BLUEPRINTS, bootstrap_pages
 from wiki.indexing import build_index, load_page_index, rank_page_index
 from wiki.models.page import WikiPage
@@ -270,11 +272,15 @@ def session_handoff(document_id: str, max_chars: int = 1800, preview_limit: int 
 @app.post("/api/session/query", response_model=ChatQueryResponse)
 def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
     source_scope = _normalize_session_source_scope(payload.source_scope)
+    follow_up_context = _session_follow_up_context(payload, source_scope)
+    intent_question = str(follow_up_context.get("contextual_question") or payload.question)
     canonicals = _load_session_canonicals(source_scope)
     chunks = [chunk for canonical in canonicals for chunk in build_section_chunks(canonical)]
-    intent = parse_question_intent(payload.question)
-    route_plan = _session_route_plan(payload.question, intent)
-    query_rewrite = _session_query_rewrite(payload.question, intent, route_plan)
+    intent = parse_question_intent(intent_question)
+    route_plan = _session_route_plan(intent_question, intent)
+    route_plan = _source_location_follow_up_route_plan(route_plan, follow_up_context)
+    query_rewrite = _session_query_rewrite(intent_question, intent, route_plan)
+    route_plan = {**route_plan, "query_pack": query_rewrite.get("query_pack", {})}
     retrieval_question = str(query_rewrite["rewritten_query"])
     tool_plan = _session_tool_plan(route_plan=route_plan, query_rewrite=query_rewrite, source_scope=source_scope, use_llm=payload.use_llm)
     retrieval_result = _session_retrieve_sections(
@@ -284,6 +290,12 @@ def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
         top_k=_session_retrieval_top_k(payload.top_k, route_plan),
     )
     retrieval_result = _route_aware_retrieval_result(retrieval_result, route_plan, top_k=payload.top_k)
+    retrieval_result = _source_location_follow_up_retrieval_result(
+        retrieval_result,
+        follow_up_context,
+        chunks=chunks,
+        top_k=payload.top_k,
+    )
     retrieval_result.question = payload.question
     retrieval_result.trace.append(f"source scope: {source_scope['mode']}")
     if retrieval_question != payload.question:
@@ -310,9 +322,9 @@ def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
             used_llm = True
         except Exception as exc:
             llm_error = str(exc)
-            answer = _session_deterministic_answer(payload.question, evidence_package, citations, route_plan=route_plan)
+            answer = _session_deterministic_answer(payload.question, evidence_package, citations, route_plan=route_plan, answer_plan=answer_plan)
     else:
-        answer = _session_deterministic_answer(payload.question, evidence_package, citations, route_plan=route_plan)
+        answer = _session_deterministic_answer(payload.question, evidence_package, citations, route_plan=route_plan, answer_plan=answer_plan)
     confidence = _session_confidence(evidence_package, citations)
     return ChatQueryResponse(
         answer=answer,
@@ -332,6 +344,7 @@ def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
         answer_run=_session_answer_run(
             question=payload.question,
             source_scope=source_scope,
+            follow_up_context=follow_up_context,
             canonicals=canonicals,
             chunk_count=len(chunks),
             intent=intent,
@@ -589,6 +602,147 @@ def _normalize_session_source_scope(source_scope: dict[str, Any]) -> dict[str, A
     raise HTTPException(status_code=400, detail=f"unsupported source_scope mode: {mode}")
 
 
+def _session_follow_up_context(payload: SessionQueryRequest, source_scope: dict[str, Any]) -> dict[str, Any]:
+    previous_turn = _compact_previous_turn(payload.previous_turns[0] if payload.previous_turns else {})
+    same_scope = _same_source_scope(source_scope, previous_turn.get("source_scope"))
+    is_source_location_follow_up = bool(previous_turn) and _looks_like_source_location_question(payload.question)
+    is_follow_up = bool(previous_turn) and (
+        is_source_location_follow_up or _looks_like_follow_up_question(payload.question) or same_scope and len(payload.question.strip()) <= 28
+    )
+    contextual_question = payload.question
+    if is_follow_up and previous_turn.get("question"):
+        contextual_question = _short_answer_quote(f"{previous_turn['question']}；追问：{payload.question}", limit=420)
+    return {
+        "schema_version": "session-state-v0.1",
+        "session_id": payload.session_id or "client-session",
+        "is_follow_up": is_follow_up,
+        "is_source_location_follow_up": is_source_location_follow_up,
+        "follow_up_reason": _follow_up_reason(payload.question, previous_turn, same_scope) if is_follow_up else "",
+        "contextual_question": contextual_question,
+        "previous_turn": previous_turn,
+        "same_source_scope": same_scope,
+    }
+
+
+def _compact_previous_turn(turn: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(turn, dict):
+        return {}
+    citations = turn.get("citations") if isinstance(turn.get("citations"), list) else []
+    citation_sources = []
+    for citation in citations[:4]:
+        if not isinstance(citation, dict):
+            continue
+        source_context = citation.get("source_context") if isinstance(citation.get("source_context"), dict) else {}
+        citation_sources.append(
+            {
+                "citation_id": str(citation.get("citation_id") or ""),
+                "document_id": str(citation.get("document_id") or ""),
+                "file_name": str(citation.get("file_name") or ""),
+                "fragment_id": str(citation.get("fragment_id") or ""),
+                "section_id": str(citation.get("section_id") or source_context.get("section_id") or ""),
+                "page": str(citation.get("page") or citation.get("anchor_label") or ""),
+                "anchor_label": str(citation.get("anchor_label") or source_context.get("anchor_label") or ""),
+                "quote": _short_answer_quote(str(citation.get("quote") or ""), limit=160),
+                "source_context": _compact_source_context(source_context),
+            }
+        )
+    return {
+        "turn_id": str(turn.get("turn_id") or turn.get("id") or ""),
+        "question": _short_answer_quote(str(turn.get("question") or ""), limit=260),
+        "answer_summary": _short_answer_quote(str(turn.get("answer_summary") or turn.get("answer") or ""), limit=320),
+        "citation_count": len(citations),
+        "citation_sources": citation_sources,
+        "source_scope": turn.get("source_scope") if isinstance(turn.get("source_scope"), dict) else {},
+    }
+
+
+def _same_source_scope(current_scope: dict[str, Any], previous_scope: Any) -> bool:
+    if not isinstance(previous_scope, dict):
+        return False
+    current_mode = str(current_scope.get("mode") or "")
+    previous_mode = str(previous_scope.get("mode") or "")
+    if current_mode != previous_mode:
+        return False
+    if current_mode == "selected_docs":
+        current_ids = sorted(str(item) for item in current_scope.get("document_ids", []))
+        previous_ids = sorted(str(item) for item in previous_scope.get("document_ids", []))
+        return current_ids == previous_ids
+    return current_mode == "all_sources"
+
+
+def _compact_source_context(source_context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in {
+            "chunk_id": str(source_context.get("chunk_id") or ""),
+            "section_id": str(source_context.get("section_id") or ""),
+            "section_title": str(source_context.get("section_title") or ""),
+            "anchor_label": str(source_context.get("anchor_label") or ""),
+            "context_text": _short_answer_quote(str(source_context.get("context_text") or ""), limit=260),
+        }.items()
+        if value
+    }
+
+
+def _looks_like_follow_up_question(question: str) -> bool:
+    compact = re.sub(r"\s+", " ", question).strip().casefold()
+    if not compact:
+        return False
+    if _looks_like_source_location_question(compact):
+        return True
+    markers = (
+        "继续",
+        "上面",
+        "上述",
+        "刚才",
+        "这个",
+        "这些",
+        "那个",
+        "那",
+        "它",
+        "它们",
+        "其中",
+        "分别",
+        "再",
+        "what about",
+        "how about",
+        "continue",
+        "above",
+        "previous",
+        "same",
+        "that",
+        "those",
+        "it",
+        "them",
+    )
+    return any(marker in compact for marker in markers)
+
+
+def _looks_like_source_location_question(question: str) -> bool:
+    compact = re.sub(r"\s+", " ", question).strip().casefold()
+    if not compact:
+        return False
+    source_terms = ("原文", "出处", "来源", "引用", "reference", "citation", "source", "quote", "original text")
+    location_terms = ("哪里", "在哪", "第几页", "哪一页", "哪页", "页码", "章节", "位置", "location", "where", "page", "chapter", "section")
+    quote_terms = ("原文怎么说", "原文如何说", "原文是什么", "原文怎么写", "怎么说的", "how does the source say")
+    return any(term in compact for term in quote_terms) or (
+        any(term in compact for term in source_terms) and any(term in compact for term in location_terms)
+    )
+
+
+def _follow_up_reason(question: str, previous_turn: dict[str, Any], same_scope: bool) -> str:
+    reasons = []
+    if _looks_like_source_location_question(question):
+        reasons.append("source_location")
+    if _looks_like_follow_up_question(question):
+        reasons.append("question_marker")
+    if same_scope:
+        reasons.append("same_source_scope")
+    if previous_turn.get("question"):
+        reasons.append("previous_question_available")
+    return ",".join(reasons)
+
+
 def _load_session_canonicals(source_scope: dict[str, Any]) -> list[Any]:
     if source_scope.get("mode") == "selected_docs":
         return [_load_parsed_document(document_id) for document_id in source_scope.get("document_ids", [])]
@@ -620,6 +774,18 @@ def _expanded_session_question(question: str, intent_type: str) -> str:
 def _session_route_plan(question: str, intent: Any) -> dict[str, Any]:
     normalized_terms = getattr(intent, "normalized_terms", {}) or {}
     has_specific_terms = any(normalized_terms.get(key) for key in ("stage", "role", "deliverable", "section"))
+    if intent.intent_type == "process_explanation" and not has_specific_terms and _is_open_discovery_question(question):
+        return _route_plan_payload(
+            "generic_rag",
+            intent.intent_type,
+            summary="识别为开放式发现问题，使用通用 RAG fallback 在当前 source scope 内回答并保留证据边界。",
+        )
+    if intent.intent_type == "process_explanation" and not has_specific_terms and not _has_process_document_signal(question):
+        return _route_plan_payload(
+            "generic_rag",
+            intent.intent_type,
+            summary="未命中高频流程 route，使用通用 RAG fallback 在当前 source scope 内回答并保留证据边界。",
+        )
     if intent.intent_type == "stage_transition_work":
         stages = normalized_terms.get("stage", [])
         stage_label = " -> ".join(stages[:2]) if stages else "阶段转换"
@@ -655,6 +821,16 @@ def _session_route_plan(question: str, intent: Any) -> dict[str, Any]:
     )
 
 
+def _source_location_follow_up_route_plan(route_plan: dict[str, Any], follow_up_context: dict[str, Any]) -> dict[str, Any]:
+    if not follow_up_context.get("is_source_location_follow_up"):
+        return route_plan
+    return _route_plan_payload(
+        "reference_lookup",
+        "reference_lookup",
+        summary="识别为原文定位追问，优先沿用上一轮引用、页码、章节和原文片段。",
+    )
+
+
 def _route_plan_payload(route_id: str, intent_type: str, *, summary: str | None = None) -> dict[str, Any]:
     entry = get_route_entry(route_id)
     payload: dict[str, Any] = {
@@ -671,7 +847,20 @@ def _route_plan_payload(route_id: str, intent_type: str, *, summary: str | None 
                 "evidence_needs": list(entry.evidence_needs),
             }
         )
+    if route_id == "generic_rag":
+        payload.update(
+            {
+                "fallback_reason": "question did not match a high-confidence RouteCatalog entry",
+                "fallback_policy": "short answer -> supporting evidence -> uncertainty/gaps -> citations",
+            }
+        )
     return payload
+
+
+def _has_process_document_signal(question: str) -> bool:
+    normalized = question.casefold()
+    process_terms = ["pep", "sop", "wi", "qmp", "pmp", "文档", "流程", "规程", "规范", "制度", "作业指导", "process", "procedure", "workflow", "directive"]
+    return any(term in normalized for term in process_terms)
 
 
 def _is_process_operation_question(question: str) -> bool:
@@ -688,6 +877,12 @@ def _is_process_overview_question(question: str) -> bool:
     return any(term in normalized for term in overview_terms) and any(term in normalized for term in process_terms)
 
 
+def _is_open_discovery_question(question: str) -> bool:
+    normalized = question.casefold()
+    open_terms = ["容易被遗漏", "容易遗漏", "遗漏", "准备事项", "注意事项", "风险点", "常见问题", "影响后续", "质量门", "pitfall", "preparation", "overlook", "watch out"]
+    return any(term in normalized for term in open_terms)
+
+
 def _session_retrieval_question(question: str, intent: Any, route_plan: dict[str, Any]) -> str:
     return str(_session_query_rewrite(question, intent, route_plan)["rewritten_query"])
 
@@ -695,23 +890,26 @@ def _session_retrieval_question(question: str, intent: Any, route_plan: dict[str
 def _session_query_rewrite(question: str, intent: Any, route_plan: dict[str, Any]) -> dict[str, Any]:
     route_id = str(route_plan.get("route_id") or intent.intent_type)
     normalized_terms = getattr(intent, "normalized_terms", {}) or {}
-    route_terms = route_query_terms(route_id, normalized_terms)
     entry = get_route_entry(route_id)
+    query_pack = route_query_pack(route_id, question, normalized_terms)
+    route_terms = list(query_pack.get("route_terms") or route_query_terms(route_id, normalized_terms))
     excluded_terms = list(entry.excluded_terms) if entry else []
     reason = "沿用原始问题检索。"
     if entry:
         reason = entry.rewrite_reason
     elif intent.intent_type == "process_explanation":
         route_terms = ["procedure requirement workflow", "development phase", "role responsibility", "deliverable scope"]
+        query_pack = {**query_pack, "primary_query": " ".join([question, *route_terms]).strip(), "route_terms": route_terms}
         reason = "流程类问题默认补充流程、阶段、职责和交付物检索信号。"
 
-    rewritten_query = " ".join([question, *route_terms]).strip()
+    rewritten_query = str(query_pack.get("primary_query") or " ".join([question, *route_terms]).strip())
     return {
         "schema_version": "query-rewrite-v0.1",
         "route_id": route_id,
         "original_query": question,
         "rewritten_query": rewritten_query or question,
         "route_terms": route_terms,
+        "query_pack": query_pack,
         "excluded_terms": excluded_terms,
         "reason": reason,
         "expanded": bool(route_terms),
@@ -764,14 +962,202 @@ def _route_aware_retrieval_result(retrieval_result: Any, route_plan: dict[str, A
     retrieval_result.trace.extend(
         [
             f"route-aware {str(route_id).replace('_', ' ')} rerank applied",
-            "overview and operation backbone sections boosted; stage-specific local procedure snippets downranked",
+            _route_rerank_trace(str(route_id or "")),
         ]
     )
     return retrieval_result
 
 
+def _source_location_follow_up_retrieval_result(
+    retrieval_result: Any,
+    follow_up_context: dict[str, Any],
+    *,
+    chunks: list[Any],
+    top_k: int,
+) -> Any:
+    if not follow_up_context.get("is_source_location_follow_up"):
+        return retrieval_result
+
+    focus_citations = _follow_up_focus_citations(follow_up_context)
+    if not focus_citations:
+        retrieval_result.trace.append("source-location follow-up had no previous citations to reuse")
+        return retrieval_result
+
+    existing_hits = {str(hit.chunk.chunk_id): hit for hit in retrieval_result.hits}
+    focus_hits: list[RetrievalHit] = []
+    focus_indexes: list[int] = []
+    for citation in focus_citations:
+        normalized = _normalize_follow_up_citation(citation, retrieval_result.source_scope)
+        match_index = _citation_chunk_index(normalized, chunks)
+        if match_index is None:
+            continue
+        chunk = _chunk_with_prioritized_source_ref(chunks[match_index], normalized)
+        existing = existing_hits.get(str(chunk.chunk_id))
+        matched_terms = _unique_texts([*(existing.matched_terms if existing else []), "previous_citation", str(normalized.get("anchor_label") or "")])
+        focus_hits.append(
+            RetrievalHit(
+                chunk=chunk,
+                score=round(max(float(existing.score) if existing else 0.0, 1.0) + 240.0 - len(focus_hits), 4),
+                matched_terms=matched_terms,
+            )
+        )
+        focus_indexes.append(match_index)
+
+    if not focus_hits:
+        retrieval_result.trace.append("source-location follow-up could not match previous citations to current chunks")
+        return retrieval_result
+
+    focus_document_ids = {str(hit.chunk.document_id) for hit in focus_hits if str(hit.chunk.document_id)}
+    selected: list[RetrievalHit] = []
+    seen_chunk_ids: set[str] = set()
+
+    def add_hit(hit: RetrievalHit) -> None:
+        chunk_id = str(hit.chunk.chunk_id)
+        if chunk_id in seen_chunk_ids:
+            return
+        selected.append(hit)
+        seen_chunk_ids.add(chunk_id)
+
+    for hit in focus_hits:
+        add_hit(hit)
+    for hit in _adjacent_follow_up_hits(chunks, focus_indexes, seen_chunk_ids):
+        add_hit(hit)
+    for hit in retrieval_result.hits:
+        if str(hit.chunk.document_id) in focus_document_ids:
+            add_hit(hit)
+    for hit in retrieval_result.hits:
+        add_hit(hit)
+        if len(selected) >= top_k:
+            break
+
+    retrieval_result.hits = selected[: max(1, top_k)]
+    retrieval_result.evidence_coverage = _session_retrieval_coverage(retrieval_result.hits)
+    retrieval_result.strategy_used = "source_location_follow_up_retrieval"
+    retrieval_result.trace.append(
+        f"source-location follow-up reused {len(focus_hits)} previous citation anchors and preferred their document scope"
+    )
+    return retrieval_result
+
+
+def _follow_up_focus_citations(follow_up_context: dict[str, Any]) -> list[dict[str, Any]]:
+    previous_turn = follow_up_context.get("previous_turn") if isinstance(follow_up_context.get("previous_turn"), dict) else {}
+    citations = previous_turn.get("citation_sources") if isinstance(previous_turn.get("citation_sources"), list) else []
+    focus = [citation for citation in citations if isinstance(citation, dict)]
+    if not focus:
+        return []
+    contextual_question = str(follow_up_context.get("contextual_question") or "").casefold()
+    asks_for_all = any(term in contextual_question for term in ("分别", "这些", "所有", "全部", "all", "each"))
+    if asks_for_all:
+        return focus
+
+    leading_key = _citation_document_focus_key(focus[0])
+    if not leading_key:
+        return focus[:1]
+    same_leading_document = [citation for citation in focus if _citation_document_focus_key(citation) == leading_key]
+    return same_leading_document or focus[:1]
+
+
+def _citation_document_focus_key(citation: dict[str, Any]) -> str:
+    return str(citation.get("document_id") or citation.get("file_name") or "").strip().casefold()
+
+
+def _normalize_follow_up_citation(citation: dict[str, Any], source_scope: dict[str, Any]) -> dict[str, Any]:
+    source_context = citation.get("source_context") if isinstance(citation.get("source_context"), dict) else {}
+    document_id = str(citation.get("document_id") or "").strip()
+    if not document_id and source_scope.get("mode") == "selected_docs" and len(source_scope.get("document_ids", [])) == 1:
+        document_id = str(source_scope.get("document_ids", [""])[0]).strip()
+    return {
+        "citation_id": str(citation.get("citation_id") or ""),
+        "document_id": document_id,
+        "file_name": str(citation.get("file_name") or "").strip(),
+        "fragment_id": str(citation.get("fragment_id") or "").strip(),
+        "section_id": str(citation.get("section_id") or source_context.get("section_id") or "").strip(),
+        "anchor_label": str(citation.get("anchor_label") or citation.get("page") or source_context.get("anchor_label") or "").strip(),
+        "quote": str(citation.get("quote") or source_context.get("context_text") or "").strip(),
+    }
+
+
+def _chunk_with_prioritized_source_ref(chunk: Any, citation: dict[str, Any]) -> Any:
+    source_refs = [dict(ref) for ref in list(getattr(chunk, "source_refs", []) or [])]
+    if not source_refs:
+        return chunk
+    ranked = sorted(source_refs, key=lambda ref: _source_ref_citation_match_score(citation, ref), reverse=True)
+    if ranked == source_refs or _source_ref_citation_match_score(citation, ranked[0]) <= 0:
+        return chunk
+    try:
+        return replace(chunk, source_refs=ranked, quote=str(ranked[0].get("quote") or getattr(chunk, "quote", "") or ""))
+    except TypeError:
+        chunk.source_refs = ranked
+        chunk.quote = str(ranked[0].get("quote") or getattr(chunk, "quote", "") or "")
+        return chunk
+
+
+def _source_ref_citation_match_score(citation: dict[str, Any], source_ref: dict[str, Any]) -> int:
+    score = 0
+    source_id = str(citation.get("fragment_id") or "")
+    if source_id and source_id in {
+        str(source_ref.get("fragment_id") or ""),
+        str(source_ref.get("table_id") or ""),
+        str(source_ref.get("figure_id") or ""),
+    }:
+        score += 20
+    anchor_label = str(citation.get("anchor_label") or "")
+    if anchor_label and anchor_label == str(source_ref.get("anchor_label") or ""):
+        score += 8
+    quote = str(citation.get("quote") or "")
+    ref_quote = str(source_ref.get("quote") or "")
+    if quote and _normalized_contains(ref_quote, quote[:160]):
+        score += 12
+    elif quote and _normalized_contains(quote, ref_quote[:160]):
+        score += 6
+    return score
+
+
+def _adjacent_follow_up_hits(chunks: list[Any], focus_indexes: list[int], seen_chunk_ids: set[str]) -> list[RetrievalHit]:
+    hits: list[RetrievalHit] = []
+    for focus_index in focus_indexes:
+        focus_chunk = chunks[focus_index]
+        for offset in (-1, 1):
+            index = focus_index + offset
+            if not 0 <= index < len(chunks):
+                continue
+            chunk = chunks[index]
+            if str(getattr(chunk, "document_id", "") or "") != str(getattr(focus_chunk, "document_id", "") or ""):
+                continue
+            if str(getattr(chunk, "chunk_id", "") or "") in seen_chunk_ids:
+                continue
+            hits.append(RetrievalHit(chunk=chunk, score=180.0 - len(hits), matched_terms=["previous_citation_neighbor"]))
+    return hits
+
+
+def _unique_texts(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        key = text.casefold()
+        if text and key not in seen:
+            seen.add(key)
+            result.append(text)
+    return result
+
+
+def _route_rerank_trace(route_id: str) -> str:
+    if route_id == "deliverable_detail":
+        return "deliverable entity, content, owner, author and review evidence boosted; scope/provisional noise downranked"
+    if route_id == "tailoring_policy":
+        return "agile tailoring, review, mandatory and non-tailorable evidence boosted; scope/provisional noise downranked"
+    if route_id == "stage_transition_work":
+        return "stage transition, work item, review deliverable and readiness evidence boosted"
+    return "overview and operation backbone sections boosted; local compliance noise downranked"
+
+
 def _route_evidence_bonus(hit: Any, route_id: str) -> float:
-    bonus = _process_overview_bonus(hit)
+    bonus = 0.0
+    if route_id in {"process_operation", "process_overview"}:
+        bonus += _process_overview_bonus(hit)
+    if route_id in {"deliverable_detail", "tailoring_policy"}:
+        bonus += _route_specific_noise_penalty(hit, route_id)
     if route_id == "process_operation":
         bonus += _process_operation_bonus(hit)
     if route_id == "stage_transition_work":
@@ -829,6 +1215,38 @@ def _stage_transition_bonus(hit: Any) -> float:
     title = str(hit.chunk.section_title or "").casefold()
     searchable = " ".join([title, str(hit.chunk.text or "").casefold(), " ".join(hit.chunk.section_path).casefold()])
     bonus = 0.0
+    if "purpose and scope" in searchable:
+        bonus -= 10.0
+    if "provisional solution" in searchable or "backward method" in searchable:
+        bonus -= 8.0
+    if "standard tailoring" in searchable or "agile approaches" in searchable:
+        bonus -= 6.0
+    if "product steering group" in searchable:
+        bonus -= 5.0
+    if "product validation" in searchable or "产品确认" in searchable:
+        bonus += 18.0
+    if "r4" in searchable and ("m300" in searchable or "r5" in searchable):
+        bonus += 10.0
+    if "design validation" in searchable or "设计确认" in searchable:
+        bonus += 8.0
+    if "system validation test report" in searchable or "系统确认测试报告" in searchable:
+        bonus += 8.0
+    if "risk management report" in searchable or "风险管理报告" in searchable:
+        bonus += 5.0
+    if "usability" in searchable or "用户界面评估" in searchable:
+        bonus += 5.0
+    if "reliability" in searchable or "可靠性" in searchable:
+        bonus += 8.0
+    if "system stability test summary" in searchable or "系统稳定性测试总结" in searchable:
+        bonus += 8.0
+    if "gspr" in searchable or "general safety and performance requirements" in searchable or "通用安全和性能要求" in searchable:
+        bonus += 8.0
+    if "sted" in searchable or "summary technical documentation" in searchable or "技术文件概要" in searchable:
+        bonus += 8.0
+    if "clinical evaluation" in searchable or "post-market surveillance" in searchable:
+        bonus += 5.0
+    if "process validation" in searchable or "country specific approvals" in searchable or "ce declaration" in searchable:
+        bonus += 4.0
     if "r4" in searchable and "r5" in searchable:
         bonus += 8.0
     if "transition" in searchable or "between" in searchable or "entry" in searchable or "exit" in searchable:
@@ -844,14 +1262,21 @@ def _deliverable_detail_bonus(hit: Any) -> float:
     title = str(hit.chunk.section_title or "").casefold()
     searchable = " ".join([title, str(hit.chunk.text or "").casefold(), " ".join(hit.chunk.section_path).casefold()])
     bonus = 0.0
-    if "qmp" in searchable or "quality management plan" in searchable:
-        bonus += 8.0
-    if "content" in searchable or "include" in searchable or "contains" in searchable:
+    has_deliverable = "qmp" in searchable or "quality management plan" in searchable or "质量管理计划" in searchable
+    has_content = "content" in searchable or "include" in searchable or "contains" in searchable or "shall contain" in searchable or "内容" in searchable or "包含" in searchable
+    has_owner = "owner" in searchable or "responsible" in searchable or "responsibility" in searchable or "author" in searchable or "write" in searchable or "prepare" in searchable or "负责" in searchable or "撰写" in searchable or "编写" in searchable
+    if has_deliverable:
+        bonus += 12.0
+    if has_deliverable and has_content:
+        bonus += 16.0
+    elif has_content:
         bonus += 4.0
-    if "owner" in searchable or "responsible" in searchable or "author" in searchable or "write" in searchable:
-        bonus += 5.0
-    if "review" in searchable or "approval" in searchable or "maintain" in searchable:
-        bonus += 3.0
+    if has_deliverable and has_owner:
+        bonus += 16.0
+    elif has_owner:
+        bonus += 4.0
+    if has_deliverable and ("review" in searchable or "approval" in searchable or "maintain" in searchable or "update" in searchable or "评审" in searchable or "批准" in searchable):
+        bonus += 6.0
     return bonus
 
 
@@ -859,16 +1284,41 @@ def _tailoring_policy_bonus(hit: Any) -> float:
     title = str(hit.chunk.section_title or "").casefold()
     searchable = " ".join([title, str(hit.chunk.text or "").casefold(), " ".join(hit.chunk.section_path).casefold()])
     bonus = 0.0
-    if "agile" in searchable or "敏捷" in searchable:
-        bonus += 5.0
-    if "tailor" in searchable or "裁剪" in searchable:
+    has_agile = "agile" in searchable or "敏捷" in searchable or "scrum" in searchable or "iterative" in searchable
+    has_tailoring = "tailor" in searchable or "裁剪" in searchable
+    has_review = "review" in searchable or "评审" in searchable
+    has_mandatory = "mandatory" in searchable or "cannot be tailored" in searchable or "shall not" in searchable or "不可" in searchable or "不能" in searchable or "shall" in searchable or "must" in searchable
+    if has_agile:
         bonus += 7.0
-    if "review" in searchable or "评审" in searchable:
-        bonus += 4.0
-    if "mandatory" in searchable or "cannot be tailored" in searchable or "不可" in searchable or "shall" in searchable:
-        bonus += 4.0
-    if "approval" in searchable or "evidence" in searchable or "record" in searchable:
-        bonus += 3.0
+    if has_tailoring:
+        bonus += 8.0
+    if has_review:
+        bonus += 5.0
+    if has_agile and has_tailoring and has_review:
+        bonus += 18.0
+    if has_review and has_mandatory:
+        bonus += 14.0
+    if has_tailoring and ("approval" in searchable or "evidence" in searchable or "record" in searchable or "rationale" in searchable or "批准" in searchable or "证据" in searchable or "记录" in searchable):
+        bonus += 5.0
+    return bonus
+
+
+def _route_specific_noise_penalty(hit: Any, route_id: str) -> float:
+    title = str(hit.chunk.section_title or "").casefold()
+    searchable = " ".join([title, str(hit.chunk.text or "").casefold(), " ".join(hit.chunk.section_path).casefold()])
+    bonus = _local_compliance_noise_penalty(searchable)
+    if "history" in title or "template change" in searchable:
+        bonus -= 20.0
+    if "purpose" in title and "scope" in title:
+        bonus -= 18.0
+    if "provisional solution" in title or "backward method" in title or "过渡措施" in title or "补救办法" in title:
+        bonus -= 12.0
+    if route_id == "deliverable_detail" and not any(term in searchable for term in ("qmp", "quality management plan", "质量管理计划")):
+        bonus -= 6.0
+    if route_id == "tailoring_policy" and not any(term in searchable for term in ("agile", "敏捷", "tailor", "裁剪", "review", "评审")):
+        bonus -= 6.0
+    if route_id == "tailoring_policy" and "task and responsibilities" in title and not any(term in searchable for term in ("agile", "tailor", "裁剪")):
+        bonus -= 10.0
     return bonus
 
 
@@ -957,8 +1407,15 @@ def _session_llm_answer(
             "- 用中文直接回答用户问题，表达清楚、具体、可执行。",
             "- 不要输出独立的'识别与路线'或'References'栏目，也不要复述系统工具执行过程。",
             "- 开头先用 1-2 句给出结论；随后优先按 AnswerPlan slots 的顺序组织，但输出要像 chatbox 自然回答。",
-            "- 默认使用短段落和少量小标题；只有操作顺序、对比项或检查项需要编号。",
-            "- 编号项必须连续，不要在编号项之间插入 bullet 子项；需要补充动作、依据、引用时写在同一个编号项里。",
+            "- 使用短结论、自然小标题和短段落；操作顺序、对比项或检查项可用 `### 1. 标题 [c1]` 这类小标题。",
+            "- 长回答采用轻量 Markdown block：`##`/`###` 小标题、短段落、必要 bullet/numbered list、`>` 短引用、```text 代码块和 `---` 分隔线。",
+            "- 需要表达流程树、分流路径、检查清单或 ASCII 结构图时，使用 fenced code block；不要把普通解释塞进代码块。",
+            "- `>` 引用块只放 1-2 句关键原文或监管口径摘要；完整原文仍交给 Reference 面板。",
+            "- 不要使用 `####` 作为步骤标题；补充理解、落地总结或一句话结论直接写短段落。",
+            "- 多数小节直接写 1-2 个短段落；字段行只放在需要强调来源、边界、风险或证据缺口的位置。",
+            "- 字段名随内容选择，例如 `依据：`、`出处：`、`边界：`、`缺口：`；让每个小节服务用户问题本身。",
+            "- 不要在正文展开 `原文命中`、`相邻上下文`、quote 或 context_hit；原文核查交给引用标签和 Reference 面板。",
+            "- 编号项必须连续；编号小标题之间可以有短段落或少量字段短行，不要使用嵌套 bullet。",
             "- 避免整段答案都是 bullet point。证据缺口可以用简短 bullet 或一句话说明。",
             "- 每个步骤都要写出从 quote 或 context 里能看到的具体动作、条件、交付物或评审要求；不要只罗列章节标题。",
             "- 每个事实性句子都带引用标签，例如 [c1]。",
@@ -1005,6 +1462,7 @@ def _session_answer_style(route_plan: dict[str, Any] | None = None) -> dict[str,
         "body": "short paragraphs with compact headings",
         "numbering": "continuous_numbered_steps" if route_id in numbered_routes else "use_numbering_only_when_needed",
         "bullet_policy": "use sparingly; no nested bullets inside numbered steps",
+        "block_policy": "use markdown headings, short paragraphs, quote blocks, fenced code for flow trees, and dividers for long answers",
         "citation_policy": "inline validated citation labels only",
     }
 
@@ -1017,6 +1475,7 @@ def _answer_style_prompt_lines(answer_style: dict[str, Any]) -> list[str]:
         f"- body: {answer_style.get('body')}",
         f"- numbering: {answer_style.get('numbering')}",
         f"- bullet_policy: {answer_style.get('bullet_policy')}",
+        f"- block_policy: {answer_style.get('block_policy')}",
         f"- citation_policy: {answer_style.get('citation_policy')}",
     ]
 
@@ -1150,6 +1609,7 @@ def _session_answer_run(
     *,
     question: str,
     source_scope: dict[str, Any],
+    follow_up_context: dict[str, Any],
     canonicals: list[Any],
     chunk_count: int,
     intent: Any,
@@ -1192,6 +1652,7 @@ def _session_answer_run(
                 "inputs": {"source_scope": source_scope},
                 "outputs": {
                     "source_scope": source_scope,
+                    "session_state": follow_up_context,
                     "document_count": len(canonicals),
                     "chunk_count": chunk_count,
                     "source_label": _session_source_label(canonicals),
@@ -1211,6 +1672,7 @@ def _session_answer_run(
                     "reference_density": intent.reference_density,
                     "risk_level": intent.risk_level,
                     "strategy": evidence_package.strategy_used,
+                    "fallback_reason": route_plan.get("fallback_reason", ""),
                     "retrieval_question": retrieval_question,
                     "query_rewrite": query_rewrite,
                     "tool_plan": tool_plan,
@@ -1248,6 +1710,13 @@ def _session_answer_run(
                     "answer_length": len(answer),
                     "answer_plan": answer_plan,
                     "answer_style": answer_style,
+                    "fallback_report": _session_fallback_report(
+                        route_plan=route_plan,
+                        evidence_package=evidence_package,
+                        citations=citations,
+                        citation_validation=citation_validation,
+                        confidence=confidence,
+                    ),
                     "self_check": _session_answer_self_check(
                         route_plan=route_plan,
                         evidence_package=evidence_package,
@@ -1289,6 +1758,46 @@ def _session_evidence_preview(evidence_package: AnswerEvidencePackage, citations
         if len(preview) >= 5:
             break
     return preview
+
+
+def _session_fallback_report(
+    *,
+    route_plan: dict[str, Any],
+    evidence_package: AnswerEvidencePackage,
+    citations: list[dict[str, Any]],
+    citation_validation: dict[str, Any],
+    confidence: str,
+) -> dict[str, Any]:
+    route_id = str(route_plan.get("route_id") or "")
+    if route_id != "generic_rag":
+        return {}
+    checked_count = int(citation_validation.get("checked_count") or len(evidence_package.evidence_items))
+    valid_count = int(citation_validation.get("valid_count") or len(citations))
+    missing_count = len(evidence_package.missing_evidence)
+    coverage_ratio = round(valid_count / checked_count, 3) if checked_count else 0.0
+    uncertainty: list[str] = ["该问题未命中当前高频 RouteCatalog，回答按通用 RAG 证据组织。"]
+    if missing_count:
+        uncertainty.append(f"仍有 {missing_count} 个证据缺口，结论需要保留边界。")
+    if confidence != "high":
+        uncertainty.append("confidence 未达到 high，建议优先展开 citation 核查原文。")
+    if not citations:
+        uncertainty.append("本轮没有通过校验的 citation，不适合作为 end-user 结论。")
+    return {
+        "schema_version": "generic-rag-fallback-v0.1",
+        "route_id": route_id,
+        "fallback_reason": route_plan.get("fallback_reason") or "generic rag fallback",
+        "fallback_policy": route_plan.get("fallback_policy") or "short answer -> supporting evidence -> uncertainty/gaps -> citations",
+        "citation_coverage": {
+            "checked_count": checked_count,
+            "valid_count": valid_count,
+            "coverage_ratio": coverage_ratio,
+            "skipped_count": int(citation_validation.get("skipped_count") or 0),
+        },
+        "retrieved_evidence_count": len(evidence_package.evidence_items),
+        "missing_evidence_count": missing_count,
+        "confidence": confidence,
+        "uncertainty": uncertainty,
+    }
 
 
 def _session_answer_self_check(
@@ -1352,14 +1861,35 @@ def _session_answer_plan(
         for slot in slots
         if slot["required"] and slot["status"] != "filled"
     ]
+    missing_evidence = [
+        {
+            "slot_id": slot["slot_id"],
+            "label": slot["label"],
+            "required": slot["required"],
+            "reason": slot["missing_reason"],
+            "terms": slot.get("terms", []),
+        }
+        for slot in slots
+        if slot["status"] != "filled"
+    ]
+    required_slots = [slot for slot in slots if slot["required"]]
+    filled_required_slots = [slot for slot in required_slots if slot["status"] == "filled"]
     return {
-        "schema_version": "answer-plan-v0.1",
+        "schema_version": "answer-plan-v0.2",
         "route_id": route_id,
         "answer_shape": _answer_plan_shape(route_id),
         "slots": slots,
         "missing_slots": missing_slots,
+        "missing_evidence": missing_evidence,
         "evidence_count": len(citable_evidence),
         "citation_count": len(citations),
+        "plan_quality": {
+            "required_slots": len(required_slots),
+            "filled_required_slots": len(filled_required_slots),
+            "missing_required_slots": len(required_slots) - len(filled_required_slots),
+            "bound_evidence_count": len({evidence.evidence_id for evidence, _citation in citable_evidence}),
+            "bound_citation_count": len({str(citation.get("citation_id")) for _evidence, citation in citable_evidence if citation.get("citation_id")}),
+        },
     }
 
 
@@ -1397,13 +1927,28 @@ def _answer_plan_slot_payload(slot_def: dict[str, Any], matched: list[tuple[Evid
     citation_ids = [str(citation.get("citation_id")) for _evidence, citation in matched if citation.get("citation_id")]
     evidence_ids = [evidence.evidence_id for evidence, _citation in matched]
     summaries = [_short_answer_quote(evidence.quote, limit=120) for evidence, _citation in matched]
+    evidence_bindings = [
+        {
+            "evidence_id": evidence.evidence_id,
+            "citation_id": str(citation.get("citation_id")),
+            "document_id": evidence.document_id,
+            "section_id": evidence.section_id,
+            "section_title": evidence.section_title,
+            "anchor_label": evidence.anchor_label,
+            "quote_preview": _short_answer_quote(evidence.quote, limit=160),
+        }
+        for evidence, citation in matched
+        if citation.get("citation_id")
+    ]
     return {
         "slot_id": slot_def["slot_id"],
         "label": slot_def["label"],
         "required": bool(slot_def.get("required")),
+        "terms": list(slot_def.get("terms", [])),
         "status": "filled" if citation_ids else "missing",
         "citation_ids": citation_ids,
         "evidence_ids": evidence_ids,
+        "evidence_bindings": evidence_bindings,
         "summary": summaries[0] if summaries else "",
         "missing_reason": "" if citation_ids else str(slot_def.get("missing_reason") or "missing evidence"),
     }
@@ -1539,6 +2084,9 @@ def _citation_chunk_match_score(citation: dict[str, Any], chunk: Any) -> int:
     document_id = str(citation.get("document_id") or "")
     if document_id and str(getattr(chunk, "document_id", "") or "") != document_id:
         return 0
+    file_name = str(citation.get("file_name") or "")
+    if file_name and str(getattr(chunk, "file_name", "") or "") != file_name:
+        return 0
 
     score = 1
     section_id = str(citation.get("section_id") or "")
@@ -1548,17 +2096,21 @@ def _citation_chunk_match_score(citation: dict[str, Any], chunk: Any) -> int:
     source_id = str(citation.get("fragment_id") or "")
     anchor_label = str(citation.get("anchor_label") or "")
     source_refs = list(getattr(chunk, "source_refs", []) or [])
-    for ref in source_refs:
-        ref_ids = [ref.get("fragment_id"), ref.get("table_id"), ref.get("figure_id")]
-        if source_id and source_id in {str(item) for item in ref_ids if item}:
-            score += 14
-        if anchor_label and anchor_label == str(ref.get("anchor_label") or ""):
-            score += 4
+    ref_ids = {
+        str(item)
+        for ref in source_refs
+        for item in (ref.get("fragment_id"), ref.get("table_id"), ref.get("figure_id"))
+        if item
+    }
+    if source_id and source_id in ref_ids:
+        score += 24
+    if anchor_label and any(anchor_label == str(ref.get("anchor_label") or "") for ref in source_refs):
+        score += 4
 
     chunk_text = str(getattr(chunk, "text", "") or "")
     quote = str(citation.get("quote") or "")
     if quote and _normalized_contains(chunk_text, quote):
-        score += 10
+        score += 20
     elif quote and any(_normalized_contains(str(ref.get("quote") or ""), quote[:160]) for ref in source_refs):
         score += 5
     return score
@@ -1575,7 +2127,7 @@ def _adjacent_chunk_excerpt(chunks: list[Any], match_index: int, *, direction: i
     return ""
 
 
-def _citation_chunk_excerpt(text: str, quote: str, *, limit: int = 1600) -> str:
+def _citation_chunk_excerpt(text: str, quote: str, *, limit: int = 2200) -> str:
     compact_text = re.sub(r"\s+", " ", text).strip()
     if not compact_text:
         return ""
@@ -1654,6 +2206,7 @@ def _session_deterministic_answer(
     evidence_package: AnswerEvidencePackage,
     citations: list[dict[str, Any]],
     route_plan: dict[str, Any] | None = None,
+    answer_plan: dict[str, Any] | None = None,
 ) -> str:
     citable_evidence = _session_citable_evidence(evidence_package, citations)
     if not citable_evidence:
@@ -1673,10 +2226,14 @@ def _session_deterministic_answer(
         for index, (label, evidence, citation) in enumerate(operation_items, 1):
             citation_label = f"[{citation['citation_id']}]"
             trace_location = f"{citation.get('file_name', evidence.file_name)} · {citation.get('anchor_label', evidence.anchor_label)} · {evidence.section_title}"
-            lines.append(
-                f"{index}. {label} {citation_label} 具体做法：{_process_operation_action(label)} "
-                f"文档细节：{_evidence_detail_sentence(evidence, citation)} "
-                f"可追溯位置：{trace_location}。"
+            lines.extend(
+                [
+                    f"### {index}. {label} {citation_label}",
+                    f"{_process_operation_action(label)} {citation_label}",
+                    f"依据：{_evidence_detail_sentence(evidence, citation)}",
+                    f"出处：{trace_location}。",
+                    "",
+                ]
             )
         if evidence_package.missing_evidence:
             lines.extend(["", "需要补证或人审确认："])
@@ -1693,9 +2250,13 @@ def _session_deterministic_answer(
         ]
         for index, (evidence, citation) in enumerate(citable_evidence[:5], 1):
             citation_label = f"[{citation['citation_id']}]"
-            lines.append(
-                f"{index}. {evidence.section_title} {citation_label} 具体含义：{_overview_answer_sentence(evidence)} "
-                f"文档细节：{_evidence_detail_sentence(evidence, citation)}"
+            lines.extend(
+                [
+                    f"### {index}. {evidence.section_title} {citation_label}",
+                    f"{_overview_answer_sentence(evidence)} {citation_label}",
+                    f"依据：{_evidence_detail_sentence(evidence, citation)}",
+                    "",
+                ]
             )
         if evidence_package.missing_evidence:
             lines.extend(["", "需要人审确认的缺口："])
@@ -1704,32 +2265,106 @@ def _session_deterministic_answer(
                 lines.append(f"- {terms}: {item.get('reason', 'missing evidence')}")
         return "\n".join(lines)
 
-    lines = [f"针对问题“{question}”，我先按当前选中文档证据回答：", ""]
-    lines.append("证据回答：")
+    if route_plan and route_plan.get("route_id") == "reference_lookup":
+        lines = [
+            f"针对问题“{question}”，可回到下面这些原文位置核查：",
+            "",
+            "来源定位：",
+        ]
+        for index, (evidence, citation) in enumerate(citable_evidence[:6], 1):
+            citation_label = f"[{citation['citation_id']}]"
+            location = _citation_location_path(evidence, citation)
+            quote = _reference_lookup_quote(evidence, citation)
+            lines.extend(
+                [
+                    f"### {index}. {location} {citation_label}",
+                    f"> {quote}",
+                    f"定位路径：{location}。",
+                    "",
+                ]
+            )
+        if evidence_package.missing_evidence:
+            lines.extend(["", "需要补证或人审确认："])
+            for item in evidence_package.missing_evidence[:3]:
+                terms = ", ".join(str(term) for term in item.get("terms", [])) or str(item.get("term_type", "evidence"))
+                lines.append(f"- {terms}: {item.get('reason', 'missing evidence')}")
+        return "\n".join(lines)
+
+    if route_plan and route_plan.get("route_id") == "stage_transition_work":
+        activity_rows = _stage_transition_slot_rows(answer_plan, citable_evidence)
+        lines = [
+            f"针对问题“{question}”，我按本轮检索到的阶段转换证据和 AnswerPlan 槽位整理；下面的工作项来自已通过校验的 citation/context。",
+            "",
+            "需要完成的工作：",
+        ]
+        for index, row in enumerate(activity_rows[:8], 1):
+            citations_text = " ".join(f"[{citation_id}]" for citation_id in row["citation_ids"])
+            lines.append(f"{index}. {row['label']}：{row['summary']} {citations_text}".strip())
+        if evidence_package.missing_evidence:
+            lines.extend(["", "需要人审确认的缺口："])
+            for item in evidence_package.missing_evidence[:3]:
+                terms = ", ".join(str(term) for term in item.get("terms", [])) or str(item.get("term_type", "evidence"))
+                lines.append(f"- {terms}: {item.get('reason', 'missing evidence')}")
+        return "\n".join(lines)
+
+    if route_plan and route_plan.get("route_id") == "generic_rag":
+        lines = [
+            f"针对问题“{question}”，当前没有命中专门的流程 route；我先按当前选中文档中可校验的证据回答。",
+            "",
+            "证据回答：",
+        ]
+    else:
+        lines = [f"针对问题“{question}”，我先按当前选中文档证据回答：", "", "证据回答："]
     for index, (evidence, citation) in enumerate(citable_evidence[:4], 1):
         citation_label = f"[{citation['citation_id']}]"
-        lines.append(
-            f"{index}. {evidence.section_title} {citation_label} 具体含义：{_overview_answer_sentence(evidence)} "
-            f"文档细节：{_evidence_detail_sentence(evidence, citation)}"
+        lines.extend(
+            [
+                f"### {index}. {evidence.section_title} {citation_label}",
+                f"{_overview_answer_sentence(evidence)} {citation_label}",
+                f"依据：{_evidence_detail_sentence(evidence, citation)}",
+                "",
+            ]
         )
     if evidence_package.missing_evidence:
         lines.extend(["", "需要人审确认的缺口："])
         for item in evidence_package.missing_evidence[:3]:
             terms = ", ".join(str(term) for term in item.get("terms", [])) or str(item.get("term_type", "evidence"))
             lines.append(f"- {terms}: {item.get('reason', 'missing evidence')}")
+    elif route_plan and route_plan.get("route_id") == "generic_rag":
+        lines.extend(["", "证据边界：这类问题走通用 RAG fallback，结论只代表当前 source scope 和本轮已召回、已校验引用。"])
     return "\n".join(lines)
 
 
 def _evidence_detail_sentence(evidence: EvidenceItem, citation: dict[str, Any]) -> str:
-    quote = _short_answer_quote(str(citation.get("quote") or evidence.quote), limit=260)
     citation_label = f"[{citation['citation_id']}]" if citation.get("citation_id") else ""
+    location = " · ".join(
+        part
+        for part in [
+            str(citation.get("file_name") or evidence.file_name or ""),
+            str(citation.get("anchor_label") or evidence.anchor_label or ""),
+            evidence.section_title,
+        ]
+        if part
+    )
+    return f"引用 {citation_label} 支撑本段；原文位置：{location}。"
+
+
+def _citation_location_path(evidence: EvidenceItem, citation: dict[str, Any]) -> str:
+    return " · ".join(
+        part
+        for part in [
+            str(citation.get("file_name") or evidence.file_name or ""),
+            str(citation.get("anchor_label") or evidence.anchor_label or ""),
+            evidence.section_title,
+        ]
+        if part
+    )
+
+
+def _reference_lookup_quote(evidence: EvidenceItem, citation: dict[str, Any]) -> str:
     source_context = citation.get("source_context") if isinstance(citation.get("source_context"), dict) else {}
-    before = _short_answer_quote(str(source_context.get("context_before") or ""), limit=130)
-    after = _short_answer_quote(str(source_context.get("context_after") or ""), limit=130)
-    context_parts = [part for part in [before, after] if part and part != quote]
-    if context_parts:
-        return f"原文命中“{quote}”{citation_label}；相邻上下文还提示“{' / '.join(context_parts[:2])}”{citation_label}。"
-    return f"原文命中“{quote}”{citation_label}。"
+    quote = str(source_context.get("context_text") or citation.get("quote") or evidence.quote or "").strip()
+    return _short_answer_quote(quote, limit=420) if quote else "该引用缺少可展示的原文片段。"
 
 
 def _overview_answer_sentence(evidence: EvidenceItem) -> str:
@@ -1749,6 +2384,185 @@ def _overview_answer_sentence(evidence: EvidenceItem) -> str:
     if "validation" in searchable or "确认" in searchable:
         return "该段可支撑确认相关结论，重点看产品是否满足用户需要和预期使用场景。"
     return "把该段作为当前问题的直接证据，优先抽取其中出现的动作、条件、对象和约束。"
+
+
+def _stage_transition_slot_rows(
+    answer_plan: dict[str, Any] | None,
+    citable_evidence: list[tuple[EvidenceItem, dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    slot_order = ("transition_scope", "entry_inputs", "work_items", "reviews_deliverables", "exit_readiness")
+    slots = []
+    if isinstance(answer_plan, dict):
+        slots = [slot for slot in answer_plan.get("slots", []) if isinstance(slot, dict) and slot.get("status") == "filled"]
+        slots.sort(key=lambda slot: slot_order.index(str(slot.get("slot_id"))) if str(slot.get("slot_id")) in slot_order else len(slot_order))
+
+    rows: list[dict[str, Any]] = []
+    for slot in slots:
+        matches = _slot_citable_matches(slot, citable_evidence)
+        if not matches:
+            continue
+        rows.append(
+            {
+                "label": str(slot.get("label") or slot.get("slot_id") or "阶段转换证据"),
+                "summary": _evidence_driven_slot_summary(slot, matches),
+                "citation_ids": _unique_citation_ids(matches),
+            }
+        )
+    if rows:
+        return rows
+    return [
+        {
+            "label": evidence.section_title or "阶段转换证据",
+            "summary": _evidence_driven_slot_summary({"terms": []}, [(evidence, citation)]),
+            "citation_ids": [str(citation.get("citation_id"))] if citation.get("citation_id") else [],
+        }
+        for evidence, citation in citable_evidence[:4]
+    ]
+
+
+def _slot_citable_matches(slot: dict[str, Any], citable_evidence: list[tuple[EvidenceItem, dict[str, Any]]]) -> list[tuple[EvidenceItem, dict[str, Any]]]:
+    citation_ids = {str(citation_id) for citation_id in slot.get("citation_ids", []) if citation_id}
+    if citation_ids:
+        return [(evidence, citation) for evidence, citation in citable_evidence if str(citation.get("citation_id") or "") in citation_ids]
+    terms = tuple(str(term) for term in slot.get("terms", []) if str(term).strip())
+    if not terms:
+        return citable_evidence[:3]
+    return [
+        (evidence, citation)
+        for evidence, citation in citable_evidence
+        if any(term.casefold() in _evidence_searchable_text(evidence, citation).casefold() for term in terms)
+    ][:3]
+
+
+def _evidence_driven_slot_summary(slot: dict[str, Any], matches: list[tuple[EvidenceItem, dict[str, Any]]]) -> str:
+    terms = tuple(str(term) for term in slot.get("terms", []) if str(term).strip())
+    coverage_terms = _specific_coverage_terms(terms) or terms
+    candidates: list[tuple[int, str, list[str]]] = []
+    seen: set[str] = set()
+    for match_index, (evidence, citation) in enumerate(matches):
+        for segment, matched_terms in _evidence_activity_segments(evidence, citation, coverage_terms):
+            key = _compact_segment_key(segment)
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append((match_index, segment, matched_terms))
+
+    segments = _select_coverage_segments(candidates, max_segments=6 if terms else 3)
+    if not segments:
+        segments = [_short_answer_quote(str(citation.get("quote") or evidence.quote), limit=220) for evidence, citation in matches[:2]]
+    return "证据中出现的活动/条件包括：" + "；".join(segment for segment in segments if segment) + "。"
+
+
+def _select_coverage_segments(candidates: list[tuple[int, str, list[str]]], *, max_segments: int) -> list[str]:
+    selected: list[str] = []
+    covered_terms: set[str] = set()
+    remaining = list(candidates)
+    while remaining and len(selected) < max_segments:
+        best_index = max(
+            range(len(remaining)),
+            key=lambda index: (
+                len(set(remaining[index][2]) - covered_terms),
+                len(set(remaining[index][2])),
+                -remaining[index][0],
+                -index,
+            ),
+        )
+        match_index, segment, matched_terms = remaining.pop(best_index)
+        new_terms = set(matched_terms) - covered_terms
+        if matched_terms and not new_terms and len(selected) >= 2:
+            continue
+        selected.append(segment)
+        covered_terms.update(matched_terms)
+    if len(selected) < 2:
+        for _match_index, segment, _matched_terms in candidates:
+            if segment not in selected:
+                selected.append(segment)
+            if len(selected) >= min(2, max_segments):
+                break
+    return selected[:max_segments]
+
+
+def _evidence_activity_segments(evidence: EvidenceItem, citation: dict[str, Any], terms: tuple[str, ...]) -> list[tuple[str, list[str]]]:
+    text = _evidence_searchable_text(evidence, citation)
+    raw_segments = _split_activity_text(text)
+    segments: list[tuple[str, list[str]]] = []
+    for raw_segment in raw_segments:
+        segment = _clean_activity_segment(raw_segment)
+        if len(segment) < 8:
+            continue
+        matched_terms = [term for term in terms if term and term.casefold() in segment.casefold()]
+        if terms and not matched_terms:
+            continue
+        segments.append((_short_answer_quote(segment, limit=230), matched_terms))
+    return segments
+
+
+def _evidence_searchable_text(evidence: EvidenceItem, citation: dict[str, Any]) -> str:
+    source_context = citation.get("source_context") if isinstance(citation.get("source_context"), dict) else {}
+    return "\n".join(
+        part
+        for part in [
+            str(source_context.get("context_text") or ""),
+            str(citation.get("quote") or ""),
+            evidence.quote,
+            evidence.section_title,
+            " ".join(evidence.section_path),
+        ]
+        if part
+    )
+
+
+def _split_activity_text(text: str) -> list[str]:
+    normalized = text.replace("\r", "\n")
+    normalized = re.sub(r"\s*[•●▪◦·]\s*", "\n", normalized)
+    normalized = re.sub(r"\s+[\-−–]\s+", "\n", normalized)
+    normalized = re.sub(r"\n{2,}", "\n", normalized)
+    return [part.strip() for part in re.split(r"\n+|；\s*|;\s+|(?<=[。！？!?])\s+|(?<=\.)\s+(?=[A-Z])", normalized) if part.strip()]
+
+
+def _clean_activity_segment(segment: str) -> str:
+    compact = re.sub(r"\s+", " ", segment).strip()
+    compact = re.sub(r"^[\-−–:：;；,，.。\s]+", "", compact)
+    compact = re.sub(r"^(and|or)\s+", "", compact, flags=re.IGNORECASE)
+    return compact.strip()
+
+
+def _compact_segment_key(segment: str) -> str:
+    return re.sub(r"\W+", "", segment.casefold())[:160]
+
+
+def _unique_citation_ids(matches: list[tuple[EvidenceItem, dict[str, Any]]]) -> list[str]:
+    citation_ids: list[str] = []
+    for _evidence, citation in matches:
+        citation_id = str(citation.get("citation_id") or "")
+        if citation_id and citation_id not in citation_ids:
+            citation_ids.append(citation_id)
+    return citation_ids[:3]
+
+
+def _specific_coverage_terms(terms: tuple[str, ...]) -> tuple[str, ...]:
+    generic_terms = {
+        "work",
+        "activity",
+        "task",
+        "complete",
+        "review",
+        "deliverable",
+        "record",
+        "output",
+        "phase",
+        "stage",
+        "between",
+        "transition",
+        "完成",
+        "工作",
+        "活动",
+        "评审",
+        "交付",
+        "记录",
+        "阶段",
+    }
+    return tuple(term for term in terms if term.casefold() not in generic_terms)
 
 
 def _session_process_operation_evidence(

@@ -143,6 +143,8 @@ class SessionQueryRequest(BaseModel):
 
     question: str = Field(..., min_length=1, max_length=500, description="问题内容")
     source_scope: dict[str, Any] = Field(default_factory=lambda: {"mode": "selected_docs", "document_ids": []})
+    session_id: str | None = Field(default=None, max_length=120, description="前端会话ID")
+    previous_turns: list[dict[str, Any]] = Field(default_factory=list, max_length=5, description="最近对话轮次摘要")
     use_llm: bool = Field(default=False, description="是否使用LLM")
     model_profile: str = Field(default="azure-gpt-5.4", max_length=80, description="LLM模型配置profile")
     top_k: int = Field(default=8, ge=1, le=30, description="检索 chunk 数量")

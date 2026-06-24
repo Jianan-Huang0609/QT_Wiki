@@ -45,7 +45,7 @@ Harness：`repo-dev-harness`
 
 - [x] 类 ChatGPT 主 Chat UI 第一版：旧右侧 ChatbotPanel 改为主屏，文档/引用/导出改抽屉。
   - 证据：`npm run build` 通过；localhost 显示 `process-chat-app`、主 Chat、上下文/引用/输出/后台抽屉。
-- [ ] NotebookLM 式正式互动 Session UI：左 Sources/Tree/Graph，中 Session Chat，右 Session Note/Workflow Studio。
+- [ ] NotebookLM 式正式互动 Session UI：左 Sources/Tree/Graph，中 Session Chat，右 Reference Viewer；Session Note/Workflow Studio 后置。
 - [ ] Session Contract：session、source_scope、messages、note、publish_status。
 - [ ] Source Scope：Selected Docs / Upload To Session / All Sources。
 - [ ] Session upload 状态标：parsed / failed / low confidence。

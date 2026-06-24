@@ -190,6 +190,25 @@ export interface AnswerRunPayload {
   steps: AnswerRunStepPayload[];
 }
 
+export interface SessionFollowUpTurn {
+  turn_id: string;
+  question: string;
+  answer_summary: string;
+  source_scope: Record<string, unknown>;
+  citations: {
+    citation_id: string;
+    document_id?: string;
+    file_name?: string;
+    fragment_id?: string;
+    section_id?: string;
+    evidence_id?: string;
+    anchor_label?: string;
+    page?: string;
+    quote?: string;
+    source_context?: CitationSourceContext;
+  }[];
+}
+
 export interface QueryResult {
   answer: string;
   confidence: "low" | "medium" | "high";

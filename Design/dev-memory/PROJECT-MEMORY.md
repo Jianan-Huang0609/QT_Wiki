@@ -3,10 +3,10 @@
 ## Stable Product Direction
 
 - vNext 主线是 NotebookLM 式 PEP 知识工作台：Landing / Knowledge Base / Session Workspace 三层产品。
-- 本次 MVP 最小目标是正式互动 Session Workspace：左侧固定 Sources/Tree/Graph，中间 Session Chat，右侧 Session Note / Workflow Studio。
+- 本次 MVP 最小目标是正式互动 Session Workspace：左侧固定 Sources/Tree/Graph，中间 Session Chat，右侧 Reference Viewer；Session Note / Workflow Studio 后置。
 - Knowledge Base 是背景环境，维护 CT / MI / XP 等 PEP PDF、章节索引和关联图；每次新 session 复用或复制当前知识库快照作为 source scope。
-- Session 是一次独立研究任务，拥有独立聊天记录、source scope、session-only uploads 和 note。
-- 右侧 note 跟随当前 session，支持 pin answer、生成 HTML note、飞书 Markdown、Reference 表、Mermaid、BU diff，并保留 publish note 入口。
+- Session 是一次独立研究任务，拥有独立聊天记录、source scope、session-only uploads 和 follow-up context。
+- 右侧 Reference Viewer 跟随当前 session，默认展示文件、页码/锚点和 quote，选中引用可展开完整原文、前文和后文；note/export/workflow 能力后置。
 - 典型用户问题包括：“PEP 文档的流程如何操作？”、“现在在 R2 阶段，我作为 PO 应该做什么？”、“这条回答来自哪个文件哪个章节？”
 - 回答必须基于本次上传、预置公司流程库、历史解析文档或用户问题上下文，并返回文件、章节/标题和 quote。
 - Source 选择模式包括 Selected Docs、Upload To Session、All Sources；默认技术路径是章节级 RAG，All Sources 使用 RAG + rerank，小范围章节可走局部 LLM 直接读。

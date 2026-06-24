@@ -74,3 +74,52 @@ def test_session_route_plan_exposes_catalog_policy_metadata():
     assert route_plan["risk_level"] == entry.risk_level
     assert route_plan["citation_policy"] == entry.citation_policy
     assert route_plan["evidence_needs"] == list(entry.evidence_needs)
+
+
+def test_query_rewrite_outputs_route_query_pack_for_evidence_patterns():
+    from App.api import _session_query_rewrite, _session_route_plan
+    from Tool.workflows.answer import parse_question_intent
+
+    cases = [
+        (
+            "CT PEP 中 R4 到 R5 之间需要完成哪些工作？",
+            "stage_transition_work",
+            {"work_items", "reviews_deliverables", "exit_readiness"},
+            {"product validation", "reliability engineering report", "system stability test summary", "GSPR", "STED"},
+            {"PEP", "document", "procedure"},
+            {"purpose and scope", "provisional solution"},
+        ),
+        (
+            "MI PEP 中 QMP 需要包含哪些内容？谁负责撰写 QMP？",
+            "deliverable_detail",
+            {"required_contents", "owner_author", "review_approval"},
+            {"QMP", "quality management plan", "required contents", "owner", "author"},
+            {"PEP", "document", "procedure"},
+            {"purpose and scope", "provisional solution"},
+        ),
+        (
+            "XP PEP 采用敏捷方法开发，可以裁剪哪些评审？哪些评审不可被裁剪？",
+            "tailoring_policy",
+            {"agile_applicability", "tailorable_reviews", "non_tailorable_reviews"},
+            {"agile", "tailoring", "review", "mandatory review", "cannot be tailored"},
+            {"PEP", "document", "procedure"},
+            {"purpose and scope", "provisional solution", "task and responsibilities"},
+        ),
+    ]
+
+    for question, route_id, required_slot_ids, expected_terms, weak_terms, downrank_terms in cases:
+        intent = parse_question_intent(question)
+        route_plan = _session_route_plan(question, intent)
+        rewrite = _session_query_rewrite(question, intent, route_plan)
+        query_pack = rewrite["query_pack"]
+
+        assert route_plan["route_id"] == route_id
+        assert query_pack["schema_version"] == "route-query-pack-v0.1"
+        assert query_pack["primary_query"] == rewrite["rewritten_query"]
+        assert required_slot_ids.issubset({item["slot_id"] for item in query_pack["slot_queries"]})
+        assert expected_terms.intersection(set(query_pack["route_terms"] + query_pack["must_terms"] + query_pack["support_terms"]))
+        assert weak_terms.issubset(set(query_pack["weak_terms"]))
+        assert downrank_terms.issubset(set(query_pack["downrank_terms"]))
+        for slot_query in query_pack["slot_queries"]:
+            assert slot_query["query"].startswith(question)
+            assert slot_query["terms"]
