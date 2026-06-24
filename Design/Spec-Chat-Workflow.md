@@ -118,15 +118,16 @@ Route 保持开放的内容：
 
 ### 1.5 2026-06-23 辩证判断：薄 RouteCatalog + 泛化 Router
 
-### 1.6 2026-06-24 外部框架吸收原则
+### 1.6 External Architecture References
 
-当前 Chat Runtime 与 Self-RAG、VMAO 一类 agentic RAG 框架已经同向，但采用轻量工程化落地：
+当前 Chat Runtime 与这些 RAG / Agent 架构同向，但只吸收工程落点，不引入开放式 multi-agent runtime：
 
-- Self-RAG 的 reflection 思路落到 `Claim Guardrail` 和 route-gated retrieval，而不是开放式自我反思。
-- VMAO 的 Plan/Execute/Verify/Replan 落到 Answer Run；replan 后续只允许有限的确定性动作，例如扩大 top_k、使用 secondary query 或降级 fallback。
-- GraphRAG 只用于后续多文档/BU 对比，不进入当前单文档问答实时路径。
-- DSPy 式优化先依赖 eval/human-review 样本积累，再用于 Router、Query Rewrite 和 rerank 调参。
-- MEQA 式多 agent 只用于异构工具任务；普通文档问答继续走固定 workflow。
+- Self-RAG -> Thin Claim Guardrail + on-demand retrieval。
+- VMAO -> bounded Plan/Execute/Verify/Replan。
+- GraphRAG -> later multi-doc graph summaries。
+- DSPy -> eval-driven prompt/router optimization。
+- Enterprise QA lessons -> evidence boundary + human review。
+- MEQA -> tool-specific agents only when needed。
 
 设计边界：新增 agent 前必须先有 stable tool contract、eval case 和 human review gate。
 

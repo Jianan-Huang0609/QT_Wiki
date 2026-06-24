@@ -108,16 +108,18 @@ Parser 边界
 | 6 | `R0-01/R0-02` | 用单文档和高频专业问题做人审 smoke。 |
 | 7 | 触发式 parser | 若人审证明表格/结构 anchor 仍是瓶颈，再进入 parser 表格元素抽取。 |
 
-### 1.6 外部 RAG / Agent 框架吸收点
+### 1.6 External Architecture References
+
+这部分只记录外部架构参考在本项目里的落点，不做长论文综述。
 
 | 参考 | 吸收方式 | 当前落点 |
 | --- | --- | --- |
-| Self-RAG | Retrieve -> Generate -> Critique -> 修正；按需检索。 | `CHAT-07` 做薄 Claim Guardrail，route-gated semantic 保持按需启用。 |
-| VMAO | Plan -> Execute -> Verify -> Replan。 | Answer Run 保持 bounded workflow；后续只允许一次确定性 replan。 |
-| Microsoft GraphRAG | 多文档图谱、社区摘要、层次总结。 | 放到 `R0-04` 多文档/BU 对比稳定后做轻量 domain graph。 |
-| DSPy | 把 prompt pipeline 当可优化程序。 | 先积累 eval/human-review 样本，再调 Router/Rewrite/Rerank。 |
-| Enterprise QA | 企业问答准确率有上限，必须显式证据边界。 | EvidenceSource、quality warning、Reference UI 和 human review。 |
-| MEQA | 多 Agent 分工处理复杂企业 QA。 | 普通问题走固定 workflow；异构工具任务再升级 agent。 |
+| Self-RAG | Thin Claim Guardrail + on-demand retrieval | `CHAT-07` 做薄 claim guardrail；retrieval 保持 route-gated / on-demand，不默认扩大检索。 |
+| VMAO | bounded Plan/Execute/Verify/Replan | Answer Run 保持 bounded workflow；后续只允许有限、可审计的 deterministic replan。 |
+| GraphRAG | later multi-doc graph summaries | 放到 `R0-04` 多文档 / BU 对比稳定后，再做轻量 domain graph summaries。 |
+| DSPy | eval-driven prompt/router optimization | 先积累 eval + human-review 样本，再优化 Router、Query Rewrite、rerank 和 composer prompt。 |
+| Enterprise QA lessons | evidence boundary + human review | EvidenceSource、quality warning、Reference UI 和 human review 共同守住证据边界。 |
+| MEQA | tool-specific agents only when needed | 普通问答走固定 workflow；只有异构工具任务才升级为 tool-specific agents。 |
 
 ## 2. 已完成证据
 

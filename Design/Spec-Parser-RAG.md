@@ -318,6 +318,17 @@ Renderer 从 `DocumentBlock[]` 生成 Markdown：
 
 这个 adapter 是 Reference UI、Claim Guardrail、quality warning 和后续 parser 表格元素抽取之间的稳定桥。Parser 后续只需要把更强的 table/cell/visual anchors 供给 EvidenceSource，不直接泄漏 provider backend 字段到 Chat/UI 主路径。
 
+### 7.6B External Architecture References
+
+Parser/RAG 层只吸收这些外部架构的证据与检索落点：
+
+- Self-RAG -> Thin Claim Guardrail + on-demand retrieval。
+- GraphRAG -> later multi-doc graph summaries。
+- DSPy -> eval-driven prompt/router optimization。
+- Enterprise QA lessons -> evidence boundary + human review。
+
+VMAO 和 MEQA 主要落在 Chat Runtime / tool orchestration；Parser/RAG 的职责是稳定输出 EvidenceSource、quality warning、table/cell/visual anchors 和 eval evidence。
+
 ### 7.7 Stage 6: Blocks -> Chunks -> Retrieval
 
 Chunk builder 以 blocks 为输入：
