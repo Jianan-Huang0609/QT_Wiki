@@ -35,6 +35,7 @@ from Tool.retrieval.retrievers import FullTextRetriever, HybridRetriever, RuleSe
 from Tool.retrieval.section_index import RetrievalHit
 from Tool.workflows.answer import AnswerEvidencePackage, EvidenceItem, build_answer_evidence_package, parse_question_intent
 from Tool.workflows.document_parse import build_parse_workflow_summary
+from Tool.workflows.intent_route import project_rule_route_to_intent_route
 from Tool.workflows.route_catalog import get_route_entry, route_answer_slot_dicts, route_query_pack, route_query_terms
 from wiki.builders.bootstrap import PAGE_BLUEPRINTS, bootstrap_pages
 from wiki.indexing import build_index, load_page_index, rank_page_index
@@ -281,6 +282,7 @@ def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
     route_plan = _source_location_follow_up_route_plan(route_plan, follow_up_context)
     query_rewrite = _session_query_rewrite(intent_question, intent, route_plan)
     route_plan = {**route_plan, "query_pack": query_rewrite.get("query_pack", {})}
+    intent_route_shadow = _session_intent_route_shadow(route_plan=route_plan, intent=intent, follow_up_context=follow_up_context)
     retrieval_question = str(query_rewrite["rewritten_query"])
     tool_plan = _session_tool_plan(route_plan=route_plan, query_rewrite=query_rewrite, source_scope=source_scope, use_llm=payload.use_llm)
     retrieval_result = _session_retrieve_sections(
@@ -349,6 +351,7 @@ def session_query(payload: SessionQueryRequest) -> ChatQueryResponse:
             chunk_count=len(chunks),
             intent=intent,
             route_plan=route_plan,
+            intent_route_shadow=intent_route_shadow,
             retrieval_question=retrieval_question,
             query_rewrite=query_rewrite,
             tool_plan=tool_plan,
@@ -855,6 +858,30 @@ def _route_plan_payload(route_id: str, intent_type: str, *, summary: str | None 
             }
         )
     return payload
+
+
+def _session_intent_route_shadow(*, route_plan: dict[str, Any], intent: Any, follow_up_context: dict[str, Any]) -> dict[str, Any]:
+    route_id = str(route_plan.get("route_id") or "generic_rag")
+    normalized_terms = getattr(intent, "normalized_terms", {}) or {}
+    extensions = {
+        "mode": "rule_route_shadow",
+        "rule_route": {
+            "route_id": route_id,
+            "intent_type": getattr(intent, "intent_type", route_id),
+            "summary": route_plan.get("summary", ""),
+            "fallback_reason": route_plan.get("fallback_reason", ""),
+        },
+        "query_pack": route_plan.get("query_pack", {}),
+    }
+    return project_rule_route_to_intent_route(
+        route_id=route_id,
+        question_type=str(getattr(intent, "intent_type", route_id)),
+        normalized_terms=normalized_terms,
+        needs_previous_context=bool(follow_up_context.get("is_follow_up") or follow_up_context.get("is_source_location_follow_up")),
+        route_match=0.72 if route_id == "generic_rag" else 1.0,
+        evidence_likely=0.45 if route_id == "generic_rag" else 0.85,
+        extensions=extensions,
+    )
 
 
 def _has_process_document_signal(question: str) -> bool:
@@ -1614,6 +1641,7 @@ def _session_answer_run(
     chunk_count: int,
     intent: Any,
     route_plan: dict[str, Any],
+    intent_route_shadow: dict[str, Any],
     retrieval_question: str,
     query_rewrite: dict[str, Any],
     tool_plan: dict[str, Any],
@@ -1668,6 +1696,7 @@ def _session_answer_run(
                     "intent_type": intent.intent_type,
                     "route_id": route_plan.get("route_id"),
                     "route_summary": route_plan.get("summary"),
+                    "intent_route_shadow": intent_route_shadow,
                     "answer_shape": intent.answer_shape,
                     "reference_density": intent.reference_density,
                     "risk_level": intent.risk_level,

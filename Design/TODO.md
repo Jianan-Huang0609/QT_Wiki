@@ -1,6 +1,6 @@
 # QT Wiki System TODO
 
-更新时间：2026-06-23
+更新时间：2026-06-24
 状态：Active，系统级 checkbox-first 执行入口
 
 使用方式：本文件只放可勾选的系统级开发任务；模块级设计、取舍解释和接口细节写在对应 Spec；历史 Gate / Plan / Review 文档统一归档到 [old/](old/)，仅作为历史背景和证据附件。
@@ -27,15 +27,25 @@
 
 ## 1. 当前主线
 
-下一阶段主线是 Release-0 可信 NotebookLM-like 问答闭环。当前执行顺序明确为：先用 `BASE-01` 定尺子，再推进 Chat 的 RouteCatalog / generic fallback / AnswerPlan / Session State；Parser 先评估现有解析能力是否够用，只补轻量 EvidenceSource adapter；UI 围绕稳定 contract 做普通用户主路径减噪。Claim Verifier 先作为后续薄 guardrail，不作为当前主路径阻塞项。
+下一阶段主线是 Release-0 可信 NotebookLM-like 问答闭环的第二轮收敛：Parser 当前主路径够用，先冻结完整 provider 升级；本周优先做 Router 2.0 的 schema / shadow / diff，随后补 Semantic RAG 实验与表格检索诊断；下周在 Router contract 稳定后收敛 composer、抽离 rerank，并启动文档质量 contract 与 UI Source Intake。
 
 ```text
-BASE-01 smoke 问题集
-  -> Chat 用 RouteCatalog / generic fallback 规划回答
-  -> evidence / citation / session state 守住事实边界和追问上下文
-  -> 现有解析结果通过 EvidenceSource adapter 供 Chat 稳定消费
-  -> UI 展示回答、引用、质量摘要
-  -> CT / MI / XP smoke 证明可用
+Router 2.0 第一刀
+  -> intent-route-v0.2 schema
+  -> RouteCatalog 13 个 entry 全量无损映射
+  -> rule route 输出投影到 schema
+  -> LLM Router shadow 输出与规则 route diff
+  -> guardrails 失败降级 generic_rag
+
+RAG 升级第一刀
+  -> VectorRetriever 接 Azure text-embedding-3-small adapter
+  -> lexical-only vs semantic-hybrid smoke 对比
+  -> 表格问题实测，判断 query rewrite / table-aware chunk / parser provider 哪层需要动
+
+Parser 边界
+  -> 当前 PDF pypdf、DOCX XML 主链路保持不动
+  -> Docling / Marker / MinerU / OCR provider 进入 Later
+  -> 触发条件是扫描件、图片型 PDF、复杂表格/版面成为 Release-0 阻塞
 ```
 
 三份 Spec 到 TODO 的映射：
@@ -50,11 +60,38 @@ BASE-01 smoke 问题集
 
 | 顺序 | 任务 | 优先级判断 |
 | --- | --- | --- |
-| 1 | `PARSER-MIN-02` | 把 Chat、citation、AnswerPlan、Reference 统一到轻量 EvidenceSource view，减少字段散拼。 |
-| 2 | `PARSER-MIN-03` | 输出文件级/evidence-level 质量状态，让 UI 能稳定表达已解析、待复核、不可作为 primary evidence。 |
-| 3 | `UI-01` / `UI-02` | 继续把上传、资源选择、连续提问、Reference 和 Note 做成普通用户主路径；debug/admin 进入后续页面。 |
-| 4 | `R0-01` / `R0-02` / `R0-03` / `R0-04` | 用真实 CT / MI / XP smoke 证明单文档、高频问题、未知 fallback 和多文档对比可用。 |
-| 5 | `CHAT-07` | 后续薄 Claim Guardrail，只检查高风险事实句和引用覆盖，不做厚同步二次 RAG。 |
+| 1 | `RAG-03` | 用真实 PEP 表格问题诊断表格检索短板，先判断 query rewrite 是否足够。 |
+| 2 | `CHAT-COMP-01` | 迁移 composer 前先盘点 5 类 hardcoded 分支的边界行为，避免 plan-driven 后丢功能。 |
+| 3 | `PARSER-MIN-03` / `PARSER-MIN-02` | 下周 UI 前置：先有文档/evidence 质量状态，再正式化 EvidenceSource view。 |
+| 4 | `UI-01` / `UI-02` | Router contract 稳定后启动 Source Intake 与 Ask Workspace 拆页。 |
+
+### 1.2 2026-06-24 到 2026-07-03 执行节奏
+
+| 时间 | 主线 | 交付 |
+| --- | --- | --- |
+| 6/24-6/25 | Router schema | `CHAT-05A`：schema、catalog mapping、round-trip fixture、answer_run shadow 输出。 |
+| 6/26 | Router shadow diff | `CHAT-05B`：LLM Router vs 规则 route diff artifact，保留 source-location guardrail。 |
+| 6/27 | Semantic RAG | `RAG-02`：Azure embedding adapter、3-way Hybrid smoke、lexical/semantic 对比报告。 |
+| 6/28 | 表格诊断 + composer 风险 | `RAG-03` 表格问题失败分类；`CHAT-COMP-01` 迁移风险文档。 |
+| 6/29-7/1 | Composer / rerank | AnswerPlan-driven composer；slot-driven route rerank extraction。 |
+| 7/2-7/3 | Quality + UI | `PARSER-MIN-03` 文档/evidence quality contract；`UI-01` Source Intake 第一刀。 |
+
+### 1.3 Router 2.0 设计要点
+
+- `primary_route` 必须来自 RouteCatalog；`secondary_routes` 也只能是已登记 route id。
+- `entities` 不是 `dynamic_term_keys` 的直译，而是结构化实体实例，例如 stage 的 `from_stage / to_stage / active_stage`，deliverable 的 `query_target`，BU 的 source scope hint。
+- `confidence` 拆为 `route_match` 和 `evidence_likely`：route 低置信降级 `generic_rag`，evidence 低置信提高 missing evidence 预期。
+- `_extensions` 作为 schema 扩展点，后续承接 `table_needed`、`multi_hop` 等实验字段。
+- Pre-router 只保留稳定事实抽取和候选 route hint，不再输出最终意图；最终 route 由 LLM Router shadow 决策，并由程序 guardrails 校验。
+- Guardrails 至少包含 schema 合法、route 在 catalog、confidence 达标、secondary routes 合法；失败统一降级 `generic_rag` 并记录原因。
+
+### 1.4 RAG 设计要点
+
+- 当前 baseline 是 `HybridRetriever([RuleSectionRetriever, FullTextRetriever])`，属于 lexical / rule hybrid。
+- `VectorRetriever` 已有注入点，本轮只接真实 Azure embedding adapter，不建向量数据库，不默认替换生产检索。
+- embedding 首选 Azure `text-embedding-3-small`；不可用时再评估本地 `all-MiniLM-L6-v2` fallback。
+- 三路 Hybrid 先等权 RRF，不先调权重；用 smoke 数据比较 recall@8、route accuracy、citation drift。
+- 表格先让 semantic embedding 尝试补召回；若仍失败，再考虑 table-aware chunk metadata 或 structured table index。
 
 ## 2. 已完成证据
 
@@ -127,10 +164,24 @@ BASE-01 smoke 问题集
   - 验收：API 仍返回兼容 `ChatQueryResponse`；新增/迁移逻辑都有窄测试；answer_run 每一步来自真实中间状态。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
-- [ ] **CHAT-05 LLM structured Router schema harness**
-  - 预期功能：真实 LLM 接入前，系统可以用 fixture/mock 验证 `intent-route-v0.2` 的结构化输出、校验规则和降级路径。
-  - 最小方案：校验 route 是否存在、confidence、entities、evidence_needs、answer_slots 和 fallback_reason。
-  - 验收：R4/R5、QMP、敏捷裁剪和未知问题 fixture 通过 schema；非法 route 或低置信输出降级到 `generic_rag`。
+- [x] **CHAT-05A intent-route-v0.2 schema + RouteCatalog 全量映射** `Highest`
+  - 预期功能：系统有一个可承载当前 RouteCatalog 策略和未来 LLM Router 输出的统一 route schema，且不会丢失现有 13 个 route 的策略字段。
+  - 最小方案：定义 `intent-route-v0.2`，把 `RouteCatalogEntry.route_id / summary / query_terms / excluded_terms / dynamic_term_keys / evidence_needs / answer_slots / answer_shape / risk_level / citation_policy / rewrite_reason / rerank_enabled / expands_retrieval / top_k_multiplier` 全量映射；新增 `primary_route / secondary_routes / confidence.route_match / confidence.evidence_likely / entities / question_type / needs_previous_context / guardrail / _extensions`。
+  - 验收：每个 catalog entry round-trip 后字段不丢；非法 route、非法 secondary route、低 route_match 都能降级 `generic_rag`；`/api/session/query` 可在 answer_run 中 shadow 输出 schema，但不改变当前生产 route 行为。
+  - 证据：新增 `Tool.workflows.intent_route`，提供 `intent-route-v0.2` catalog projection、结构化 entities 和 guardrail fallback；当前规则 route 通过 `_session_intent_route_shadow()` 投影到 `/api/session/query` 的 answer_run planning 输出，不改变生产 route。新增 `tests/test_route_catalog.py` 覆盖 13 个 RouteCatalog entry 无损映射、非法 primary route 和低 `route_match` 降级 `generic_rag`、阶段/BU entity 投影；扩展 session query API 回归验证 answer_run shadow schema。验证 `tests/test_route_catalog.py tests/test_app_api.py -q` 为 `44 passed, 1 warning`。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [x] **CHAT-05B LLM Router shadow diff 分析** `Highest`
+  - 预期功能：真实 LLM Router 输出可以和当前规则 route 做逐案对比，明确哪些规则可退役、哪些规则应保留为 pre-router entity extraction 或 safety guardrail。
+  - 最小方案：对 R4->R5、QMP、敏捷裁剪、source-location follow-up、未知 fallback、多 BU 对比运行 LLM Router shadow；比较 route id、entities、confidence、query_pack/evidence_needs/answer_slots、needs_previous_context 和 fallback reason。
+  - 验收：生成 diff artifact，至少分类 `matched / llm_improved / llm_regressed / entity_missing / fallback_mismatch / source_location_risk`；source-location follow-up 仍由程序 guardrail 兜底；LLM route 不直接替换生产 route。
+  - 证据：新增 `Tool.workflows.router_shadow` 和 `Tool.evals.router_shadow`，支持 LLM router prompt、JSON 提取、guardrail 后 diff 分类、可注入 router 测试和 Azure GPT-5.4 真实 shadow callable。已生成 [review-artifacts/router-shadow-diff.md](review-artifacts/router-shadow-diff.md)：6 个目标 case 中 5 个 `matched`，1 个 `fallback_mismatch`；`r0-mi-unknown-fallback` 中规则 route 保守降级 `generic_rag`，LLM shadow 选择 `process_operation`，暂作为 route evolution eval 样本，不替换生产 route。Source-location follow-up 本轮 matched，但继续保留程序级 citation/source-scope guardrail。验证 `tests/test_router_shadow_diff.py tests/test_route_catalog.py tests/test_app_api.py -q` 为 `46 passed, 1 warning`。
+  - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **CHAT-COMP-01 Composer 迁移风险评估** `Highest`
+  - 预期功能：在把 `_session_deterministic_answer()` 收敛为 AnswerPlan-driven 前，先确认现有 route-specific 分支在证据不完美时的补救行为不会丢。
+  - 最小方案：新增 [dev-memory/composer_migration_risk.md](dev-memory/composer_migration_risk.md)，盘点 `process_operation / process_overview / reference_lookup / stage_transition_work / generic_rag` 等分支的边界行为：无 citation、partial evidence、missing slot、missing quote/context、fallback 输出。
+  - 验收：文档明确 `filled / partial / missing` slot 的呈现规则；后续 composer 迁移测试至少覆盖 filled、partial、missing 三类 slot。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
 - [x] **CHAT-02 Session State / follow-up contract**
@@ -161,6 +212,19 @@ BASE-01 smoke 问题集
   - 验收：Release-0 route RAG smoke 的 8 条 BASE-01 case 全部通过，route accuracy 为 1.0；QMP 和 agile tailoring 两个原失败 case 通过；不引入 parser/provider/vector DB 变更。
   - 证据：新增 `Tool.evals.route_rag_smoke.release0_route_rag_smoke_report()`、`tests/test_route_rag_smoke.py` 和 [review-artifacts/release0-route-rag-smoke.md](review-artifacts/release0-route-rag-smoke.md)。真实运行 `release0_route_rag_smoke_report(top_k=8)` 为 `8/8 pass`，`pass_rate = 1.0`，`route_accuracy = 1.0`；相关回归 `tests/test_route_rag_smoke.py tests/test_route_catalog.py tests/test_parser_rag_smoke.py tests/test_release0_smoke_cases.py tests/test_app_api.py tests/test_answer_workflow.py tests/test_retriever_interface.py tests/test_parser_quality_eval.py -q` 为 `69 passed, 1 warning`。
   - 来源：[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)、[Spec-Parser-RAG.md](Spec-Parser-RAG.md)。
+
+- [x] **RAG-02 Semantic Retriever Azure embedding smoke** `Highest`
+  - 预期功能：系统可以用真实 embedding 检查 semantic retrieval 是否补足 lexical retrieval 的中英文混写、缩写和同义表达漏召回问题。
+  - 最小方案：给 `VectorRetriever` 注入 Azure `text-embedding-3-small` adapter；先不建向量数据库，按本轮 selected-doc chunks 内存计算 cosine；在 smoke 中比较 `[RuleSection, FullText]` baseline 与 `[RuleSection, FullText, Vector]` semantic-hybrid。
+  - 验收：输出 lexical-only vs semantic-hybrid 对比 artifact，至少记录 recall@8、route accuracy、citation drift、embedding endpoint 失败时的 fallback；默认生产检索不因 embedding 不可用失败。
+  - 证据：新增 `Tool.retrieval.embeddings.AzureEmbeddingAdapter` 和 `config/azure_embedding_3_small_config.json` 占位配置，真实接入 Azure `text-embedding-3-small`；新增 `Tool.evals.semantic_rag_smoke`，对比 lexical baseline 与 `[RuleSection, FullText, Vector]` semantic-hybrid，并用 batch + memory cache 避免重复 chunk embedding 请求。真实报告见 [review-artifacts/semantic-rag-smoke.md](review-artifacts/semantic-rag-smoke.md)：embedding endpoint 可用；lexical baseline recall@8 = `1.0`、route accuracy = `1.0`；semantic-hybrid recall@8 = `0.875`、route accuracy = `1.0`，`r0-mi-r2-po-guidance` 回退，`r0-mi-r2-po-guidance` 和 `r0-ct-section-716-reference` 发生 citation drift。结论：semantic retriever 保持实验开关，不替换生产默认检索；下一步 `RAG-03` 看真实表格问题是否受益。验证 `tests/test_semantic_rag_smoke.py -q` 为 `3 passed`。
+  - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
+
+- [ ] **RAG-03 表格检索诊断 smoke** `Highest`
+  - 预期功能：团队知道当前 PEP 表格问题的短板在 query rewrite、table chunk、composer 还是 parser/provider，而不是直接先做重 parser。
+  - 最小方案：选择 1 个真实 PEP 表格问题，例如交付物责任、owner/approver、行列值查询；分别跑 lexical baseline 与 semantic-hybrid，记录 table chunk 是否进入 top hits、citation 是否可定位、answer 是否能抽出具体 cell/row 信息。
+  - 验收：输出失败分类：`query_rewrite_gap / table_chunk_flattening_gap / table_anchor_gap / composer_table_answer_gap / parser_provider_gap`；若 semantic 已能召回表格，structured table index 保持 Later。
+  - 来源：[Spec-Parser-RAG.md](Spec-Parser-RAG.md)、[Spec-Chat-Workflow.md](Spec-Chat-Workflow.md)。
 
 - [ ] **PARSER-MIN-02 EvidenceSource adapter** `Highest`
   - 预期功能：Chat、citation、AnswerPlan、Claim Verifier 和 Reference UI 使用同一条轻量 evidence view，不再各自拼 parser 零散字段。
@@ -241,8 +305,9 @@ BASE-01 smoke 问题集
   - 触发条件：Release-0 selected-doc lexical/hybrid smoke 稳定后再启动。
 
 - [ ] **LATER-02 Docling / Marker / MinerU provider 评估** `Later`
-  - 预期功能：当现有 parser 不够用时，可以按失败类型评估结构化 provider，而不是直接把重依赖纳入主链路。
-  - 触发条件：`PARSER-MIN-01` 发现 reading order、layout、表格、中文复杂 PDF、扫描件或公式/图片是 Release-0 阻塞；评估前确认 Windows、芯片/本地部署、安装体积、许可证、离线可用性和运行成本。
+  - 预期功能：当现有 pypdf / DOCX XML 主路径被真实数据证明不够用时，可以按失败类型评估结构化 provider，而不是直接把重依赖纳入主链路。
+  - 当前判断：2026-06-24 起完整 parser 升级保持 Later；本周不改 parser 主路径，优先做 Router 2.0、Semantic RAG 和表格检索诊断。
+  - 触发条件：扫描件或图片型 PDF 进入主数据源；pypdf/DOCX XML 无法提供可核查 anchor；表格/reading order/layout 问题经 `RAG-03` 证明无法靠 query rewrite、semantic retrieval 或 table-aware chunk metadata 修复；评估前确认 Windows、芯片/本地部署、安装体积、许可证、离线可用性和运行成本。
 
 - [ ] **LATER-03 OCR/VLM crop pipeline 真实依赖评估** `Later`
   - 预期功能：图片、图表和扫描内容可以进入 visual candidate review，再决定是否进入 evidence。

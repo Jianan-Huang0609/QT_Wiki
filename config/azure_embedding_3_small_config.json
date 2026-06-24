@@ -1,0 +1,10 @@
+{
+  "provider": "azure_openai",
+  "azure_api_key": "",
+  "azure_endpoint": "https://apimgateway.siemens-healthineers.com",
+  "azure_deployment": "text-embedding-3-small",
+  "model": "text-embedding-3-small",
+  "api_version": "2024-02-01",
+  "max_tokens": 4000,
+  "temperature": 0.0
+}

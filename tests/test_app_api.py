@@ -772,6 +772,11 @@ def test_session_query_uses_selected_pep_chunks_for_process_question(tmp_dir):
     assert payload["answer_run"]["steps"][1]["outputs"]["chunk_count"] == 3
     assert payload["answer_run"]["steps"][2]["outputs"]["intent_type"] == "process_explanation"
     assert payload["answer_run"]["steps"][2]["outputs"]["route_id"] == "process_operation"
+    intent_route_shadow = payload["answer_run"]["steps"][2]["outputs"]["intent_route_shadow"]
+    assert intent_route_shadow["schema_version"] == "intent-route-v0.2"
+    assert intent_route_shadow["primary_route"] == "process_operation"
+    assert intent_route_shadow["route_catalog"]["route_id"] == "process_operation"
+    assert intent_route_shadow["guardrail"] == {"status": "passed", "reasons": [], "applied_fallback": False}
     query_rewrite = payload["answer_run"]["steps"][2]["outputs"]["query_rewrite"]
     assert query_rewrite["rewritten_query"].startswith("PEP 文档的流程如何操作？")
     assert "operation steps" in query_rewrite["route_terms"]

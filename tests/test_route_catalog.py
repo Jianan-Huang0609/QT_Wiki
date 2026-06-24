@@ -123,3 +123,55 @@ def test_query_rewrite_outputs_route_query_pack_for_evidence_patterns():
         for slot_query in query_pack["slot_queries"]:
             assert slot_query["query"].startswith(question)
             assert slot_query["terms"]
+
+
+def test_intent_route_v02_round_trips_every_catalog_entry_and_guardrails_invalid_routes():
+    from Tool.workflows.intent_route import build_catalog_intent_route, guard_intent_route_v02
+    from Tool.workflows.route_catalog import get_route_catalog
+
+    catalog = get_route_catalog()
+
+    assert len(catalog) == 13
+    for route_id, entry in catalog.items():
+        route = build_catalog_intent_route(entry)
+
+        assert route["schema_version"] == "intent-route-v0.2"
+        assert route["primary_route"] == route_id
+        assert route["route_catalog"] == entry.to_dict()
+        assert route["confidence"] == {"route_match": 1.0, "evidence_likely": 1.0}
+        assert guard_intent_route_v02(route)["guardrail"]["status"] == "passed"
+
+    invalid = build_catalog_intent_route(catalog["process_operation"])
+    invalid["primary_route"] = "not_registered"
+    guarded = guard_intent_route_v02(invalid)
+
+    assert guarded["primary_route"] == "generic_rag"
+    assert guarded["guardrail"]["status"] == "fallback"
+    assert "invalid_primary_route" in guarded["guardrail"]["reasons"]
+
+    low_confidence = build_catalog_intent_route(catalog["process_operation"])
+    low_confidence["confidence"]["route_match"] = 0.2
+    guarded_low = guard_intent_route_v02(low_confidence)
+
+    assert guarded_low["primary_route"] == "generic_rag"
+    assert "low_route_match" in guarded_low["guardrail"]["reasons"]
+
+
+def test_intent_route_v02_projects_rule_route_entities_without_changing_route_choice():
+    from App.api import _session_intent_route_shadow, _session_route_plan
+    from Tool.workflows.answer import parse_question_intent
+
+    question = "CT PEP 中 R4 到 R5 之间需要完成哪些工作？"
+    intent = parse_question_intent(question)
+    route_plan = _session_route_plan(question, intent)
+    shadow = _session_intent_route_shadow(route_plan=route_plan, intent=intent, follow_up_context={})
+
+    assert route_plan["route_id"] == "stage_transition_work"
+    assert shadow["schema_version"] == "intent-route-v0.2"
+    assert shadow["primary_route"] == "stage_transition_work"
+    assert shadow["question_type"] == "stage_transition_work"
+    assert {entity["type"] for entity in shadow["entities"]}.issuperset({"stage_transition", "bu_scope_hint"})
+    assert shadow["entities"][0]["from_stage"] == "R4"
+    assert shadow["entities"][0]["to_stage"] == "R5"
+    assert shadow["route_catalog"]["route_id"] == "stage_transition_work"
+    assert shadow["guardrail"] == {"status": "passed", "reasons": [], "applied_fallback": False}
